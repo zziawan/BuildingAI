@@ -23,7 +23,10 @@ import ConsoleLayout from "../layouts/console";
 import DynamicHomePage from "../pages";
 import AppIframePage from "../pages/apps/[identifier]";
 import ChatPage from "../pages/chat";
+import { ForgotPasswordPage } from "../pages/login/forgot-password";
 import { LoginPage } from "../pages/login";
+import { LoginPhonePage } from "../pages/login/login-phone";
+import { LoginWechatPage } from "../pages/login/login-wechat";
 import { OAuthCallbackPage } from "../pages/login/oauth-callback";
 import AlipayReturnPage from "../pages/payment/alipay-return";
 
@@ -35,6 +38,18 @@ export const router = createBrowserRouter([
       {
         path: "/login",
         element: <LoginPage />,
+      },
+      {
+        path: "/login/wechat",
+        element: <LoginWechatPage />,
+      },
+      {
+        path: "/login/phone",
+        element: <LoginPhonePage />,
+      },
+      {
+        path: "/login/forgot-password",
+        element: <ForgotPasswordPage />,
       },
       {
         path: "/login/oauth-callback",
