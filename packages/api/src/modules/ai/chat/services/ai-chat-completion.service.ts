@@ -131,6 +131,7 @@ export class ChatCompletionService {
         const { isToolApprovalFlow = false } = params;
         const isNew = !conversationId && params.saveConversation !== false;
         const needTitle = isNew && !params.title;
+        const isStreaming = params.stream !== false; // Default to streaming
 
         try {
             if (isNew) {
@@ -170,6 +171,254 @@ export class ChatCompletionService {
             );
 
             const chatConfig = await this.chatConfigService.getChatConfig();
+
+            if (!isStreaming) {
+                // Non-streaming mode
+                try {
+                    if (params.userId && model.membershipLevel?.length > 0) {
+                        await this.validateUserMembershipForModel(
+                            params.userId,
+                            model.membershipLevel,
+                        );
+                    }
+
+                    if (params.userId && model.billingRule) {
+                        await this.chatBillingHandler.validateUserPower(
+                            params.userId,
+                            model.billingRule,
+                        );
+                    }
+
+                    // For non-streaming, we need to process files synchronously
+                    const { messages: processed, documentContents } = await processFilesUtil(
+                        cleaned,
+                        {
+                            write: () => {}, // No-op writer for non-streaming
+                        } as ProcessFilesWriter,
+                        parseFile,
+                    );
+
+                    const hasToolSupport = Boolean(
+                        model.features?.some((f) => f.includes("tool")),
+                    );
+                    const useToolForDocuments = hasToolSupport && documentContents.length > 0;
+
+                    const userPrefs = params.userId
+                        ? await this.userDictService.getGroupValues<string | boolean>(
+                              params.userId,
+                              "ai",
+                          )
+                        : ({} as Record<string, string | boolean>);
+                    const referSavedMemories = userPrefs.referSavedMemories !== false;
+                    const userMemories =
+                        params.userId && referSavedMemories
+                            ? await this.memoryService.getUserMemories(params.userId, 20)
+                            : [];
+                    const systemPrompt = this.buildSystemPrompt(
+                        params.systemPrompt,
+                        documentContents,
+                        useToolForDocuments,
+                        userMemories,
+                        (userPrefs.chatStyle as string) ?? undefined,
+                        (userPrefs.customInstruction as string) ?? undefined,
+                    );
+                    const modelMsgs = await convertToModelMessages(
+                        stripLocalhostFileParts(processed),
+                    );
+                    const finalMessages = systemPrompt
+                        ? [{ role: "system" as const, content: systemPrompt }, ...modelMsgs]
+                        : modelMsgs;
+                    const promptText = formatMessagesForTokenCount(finalMessages);
+
+                    const tools = this.buildTools(
+                        model.provider.provider,
+                        provider,
+                        mcpTools,
+                        useToolForDocuments ? documentContents : undefined,
+                    );
+
+                    const providerOptions = model.enableThinkingParam
+                        ? getReasoningOptions(model.provider.provider, {
+                              thinking: params.feature?.thinking ?? false,
+                          })
+                        : {};
+
+                    const agent = new ToolLoopAgent({
+                        model: provider(model.model).model,
+                        ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+                        ...(hasToolSupport && Object.keys(tools).length > 0 && { tools }),
+                        stopWhen: stepCountIs(10),
+                    });
+
+                    // Use stream but collect all data for non-streaming response
+                    const result = await agent.stream({
+                        messages: finalMessages,
+                        abortSignal: params.abortSignal,
+                    });
+
+                    // Collect all messages
+                    const allMessages: UIMessage[] = [];
+                    let finalResponse: UIMessage | undefined;
+
+                    await result.consumeStream();
+
+                    // Convert to data for processing
+                    const uiMessageStream = result.toUIMessageStream({
+                        sendStart: false,
+                        originalMessages: processed,
+                        onFinish: async ({
+                            messages: finished,
+                            responseMessage: response,
+                            isAborted: aborted,
+                        }) => {
+                            allMessages.push(...finished);
+                            finalResponse = response;
+
+                            try {
+                                if (params.saveConversation === false || !conversationId) {
+                                    return;
+                                }
+
+                                const { textText, reasoningText, fullText } =
+                                    extractTextFromParts(
+                                        (response?.parts ?? []) as Array<{
+                                            type?: unknown;
+                                            text?: string;
+                                        }>,
+                                    );
+
+                                const rawUsage = await withEstimatedUsage(result, {
+                                    model: model.model,
+                                    inputText: promptText,
+                                    outputTextPromise: Promise.resolve(fullText),
+                                }).usage;
+
+                                const baseUsage = normalizeChatUsage({
+                                    rawUsage,
+                                    model: model.model,
+                                    textText,
+                                    reasoningText,
+                                }) as ChatMessageUsage;
+
+                                const totalUsage: ChatMessageUsage = { ...baseUsage };
+
+                                let userConsumedPower = 0;
+
+                                if (model.billingRule && baseUsage) {
+                                    try {
+                                        userConsumedPower =
+                                            await this.chatBillingHandler.deduct({
+                                                userId: params.userId,
+                                                conversationId,
+                                                usage: baseUsage,
+                                                billingRule: model.billingRule,
+                                            });
+                                    } catch (err) {
+                                        this.logger.warn(
+                                            `Chat billing deduct failed: ${this.getErrorMsg(err)}`,
+                                        );
+                                    }
+                                }
+
+                                if (!isToolApprovalFlow && finished.length > 0) {
+                                    const { extraTokens, extraPower } =
+                                        await this.applyPostProcessingUsage({
+                                            needTitle,
+                                            chatConfig,
+                                            messages,
+                                            finished,
+                                            fullText,
+                                            params,
+                                            conversationId,
+                                        });
+                                    if (extraTokens > 0) {
+                                        totalUsage.totalTokens =
+                                            (totalUsage.totalTokens ?? 0) + extraTokens;
+                                        totalUsage.extraTokens = extraTokens;
+                                    }
+                                    if (extraPower > 0) {
+                                        userConsumedPower += extraPower;
+                                    }
+                                }
+
+                                if (isToolApprovalFlow) {
+                                    await this.saveApprovalMessages(finished, conversationId);
+                                } else if (finished.length > 0) {
+                                    const responseWithId = response
+                                        ? { ...response, id: generateId() }
+                                        : response;
+                                    await this.saveMessages(
+                                        responseWithId,
+                                        finished,
+                                        params,
+                                        conversationId,
+                                        totalUsage,
+                                        userConsumedPower,
+                                        aborted,
+                                        {
+                                            write: () => {}, // No-op writer for non-streaming
+                                        } as any,
+                                    );
+                                }
+                            } catch (error) {
+                                this.logger.error(
+                                    `Failed to save messages: ${this.getErrorMsg(error)}`,
+                                    error instanceof Error ? error.stack : undefined,
+                                );
+                            } finally {
+                                await closeMcpClients(mcpClients);
+                            }
+                        },
+                        onError: (error) => {
+                            const errorMsg = this.getErrorMsg(error);
+                            const errorObj: Record<string, unknown> = {
+                                name: error instanceof Error ? error.name : "Error",
+                                message: errorMsg,
+                                ...(error instanceof Error &&
+                                    error.cause && { cause: error.cause }),
+                            };
+
+                            this.logger.error(
+                                `Stream error: ${errorMsg}\nDetails: ${JSON.stringify(errorObj, null, 2)}`,
+                                error instanceof Error ? error.stack : undefined,
+                            );
+
+                            closeMcpClients(mcpClients).catch((closeError) => {
+                                this.logger.warn(
+                                    `Failed to close MCP clients: ${this.getErrorMsg(closeError)}`,
+                                );
+                            });
+                            throw error;
+                        },
+                    });
+
+                    // Wait for the stream to complete
+                    await new Promise<void>((resolve, reject) => {
+                        uiMessageStream.pipeTo(new WritableStream({
+                            write: () => {}, // Ignore chunks
+                            close: resolve,
+                            abort: reject,
+                        }));
+                    });
+
+                    // Return the response as JSON
+                    const assistantMessage = allMessages.find((m) => m.role === "assistant");
+                    if (!assistantMessage) {
+                        throw new Error("No assistant message generated");
+                    }
+
+                    response.writeHead(200, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({
+                        message: assistantMessage,
+                        conversationId,
+                    }));
+                } finally {
+                    await closeMcpClients(mcpClients);
+                }
+                return;
+            }
+
+            // Original streaming logic
 
             const stream = createUIMessageStream({
                 originalMessages: isToolApprovalFlow ? messages : undefined,

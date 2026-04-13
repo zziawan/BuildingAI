@@ -100,6 +100,18 @@
                 ]
             },
             {
+                "name": "用户API-keys",
+                "code": "api-key",
+                "path": "api-key",
+                "icon": "key-round",
+                "component": "/console/ai/api-key/list",
+                "permissionCode": "api-key:list",
+                "sort": 500,
+                "isHidden": 0,
+                "type": 2,
+                "sourceType": 1
+            },
+            {
                 "name": "MCP",
                 "code": "ai-config-mcp-server",
                 "path": "mcp",
@@ -135,6 +147,18 @@
                 "type": 2,
                 "sourceType": 1
             },
+                        {
+                            "name": "模型",
+                            "code": "ai-models",
+                            "path": "models",
+                            "icon": "bot",
+                            "component": "/console/ai/model",
+                            "permissionCode": "ai-models:list",
+                            "sort": 400,
+                            "isHidden": 0,
+                            "type": 2,
+                            "sourceType": 1
+                        },
             {
                 "name": "应用管理",
                 "code": "plugin-manage",

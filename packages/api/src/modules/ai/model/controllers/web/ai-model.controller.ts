@@ -4,18 +4,23 @@ import { Public } from "@buildingai/decorators/public.decorator";
 import { DictService } from "@buildingai/dict";
 import { WebController } from "@common/decorators/controller.decorator";
 import { AiModelService } from "@modules/ai/model/services/ai-model.service";
-import { Get, Param } from "@nestjs/common";
+import { ChatCompletionService } from "@modules/ai/chat/services/ai-chat-completion.service";
+import { Body, Get, Param, Post, Req, Res } from "@nestjs/common";
+import type { Request, Response } from "express";
+import { Playground } from "@buildingai/decorators/playground.decorator";
+import { type UserPlayground } from "@buildingai/db";
 
 /**
  * AI模型信息控制器（前台）
  *
- * 提供AI模型信息查询功能
+ * 提供AI模型信息查询和调用功能
  */
 @WebController("ai-models")
 export class AiModelWebController extends BaseController {
     constructor(
         private readonly aiModelService: AiModelService,
         private readonly dictService: DictService,
+        private readonly chatCompletionService: ChatCompletionService,
     ) {
         super();
     }
@@ -42,6 +47,93 @@ export class AiModelWebController extends BaseController {
         }
 
         return result;
+    }
+
+    /**
+     * 调用模型进行对话
+     * @description 通过指定模型ID直接调用模型，支持流式响应
+     * @route POST /chat
+     * @compatibility Compatible with OpenAI API format
+     */
+    @Post("chat")
+    async chatWithModel(
+        @Body() body: any,
+        @Playground() playground: UserPlayground,
+        @Res() res: Response,
+        @Req() req: Request,
+    ) {
+        const abortController = new AbortController();
+        const abortSignal =
+            (req as any).signal instanceof AbortSignal
+                ? (req as any).signal
+                : abortController.signal;
+
+        if (!((req as any).signal instanceof AbortSignal)) {
+            const handleDisconnect = () => {
+                if (!res.writableEnded && !abortSignal.aborted) abortController.abort();
+            };
+            req.on("close", handleDisconnect);
+            req.on("aborted", handleDisconnect);
+            res.on("close", handleDisconnect);
+            if (req.aborted || req.socket?.destroyed) abortController.abort();
+        }
+
+        // Get modelId from request body (OpenAI compatible)
+        const modelId = body.model;
+
+        if (!modelId) {
+            throw new Error("请提供模型ID (model parameter is required)");
+        }
+
+        // 验证模型是否存在且可用
+        const model = await this.aiModelService.findOne({
+            where: { id: modelId, isActive: true },
+            relations: ["provider"],
+        });
+
+        if (!model) {
+            throw new Error(`模型 ${modelId} 不存在或不可用`);
+        }
+
+        if (!model.provider?.isActive) {
+            throw new Error(`模型提供商 ${model.provider?.name} 未激活`);
+        }
+
+        // 构建消息 (OpenAI compatible format)
+        const messages = body.messages || [];
+        if (!messages.length && body.prompt) {
+            messages.push({
+                role: "user",
+                content: body.prompt,
+            });
+        }
+
+        if (!messages.length) {
+            throw new Error("请提供消息内容 (messages array is required)");
+        }
+
+        // 调用聊天完成服务
+        await this.chatCompletionService.streamChat(
+            {
+                userId: playground.id,
+                modelId: modelId,
+                conversationId: undefined, // 不保存对话记录
+                messages: messages,
+                title: undefined,
+                systemPrompt: body.system_prompt || body.systemPrompt,
+                mcpServerIds: body.mcp_server_ids || body.mcpServerIds || [],
+                abortSignal,
+                isRegenerate: false,
+                regenerateMessageId: undefined,
+                parentId: undefined,
+                regenerateParentId: undefined,
+                isToolApprovalFlow: false,
+                feature: body.feature,
+                saveConversation: false, // 不保存对话
+                stream: body.stream !== false, // Default to streaming, but allow override
+            },
+            res,
+        );
     }
 
     /**

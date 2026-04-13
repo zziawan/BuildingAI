@@ -50,6 +50,7 @@ export interface ChatCompletionParams {
     parentId?: string;
     isToolApprovalFlow?: boolean;
     feature?: Record<string, boolean>;
+    stream?: boolean;
 }
 
 export interface ConversationResult {

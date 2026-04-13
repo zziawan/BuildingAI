@@ -14,6 +14,7 @@ export { AiMcpTool } from "./ai-mcp-tool.entity";
 export { AiModel } from "./ai-model.entity";
 export { AiProvider } from "./ai-provider.entity";
 export { AiUserMcpServer } from "./ai-user-mcp-server.entity";
+export { ApiKey } from "./api-key.entity";
 export { UserMemory } from "./ai-user-memory.entity";
 export { Analyse, AnalyseActionType } from "./analyse.entity";
 export { CardBatch, CardRedeemType } from "./card-batch.entity";

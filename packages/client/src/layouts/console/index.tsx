@@ -15,6 +15,9 @@ import AgentConfigIndexPage from "@/pages/console/ai/agent/config";
 import AgentIndexPage from "@/pages/console/ai/agent/list";
 import DatasetsConfigPage from "@/pages/console/ai/datasets/config";
 import DatasetsIndexPage from "@/pages/console/ai/datasets/list";
+import ApiKeyIndexPage from "@/pages/console/ai/api-key";
+import ModelIndexPage from "@/pages/console/ai/model";
+import ModelUsagePage from "@/pages/console/ai/model/usage";
 import AiMcpIndexPage from "@/pages/console/ai/mcp";
 import AiProviderIndexPage from "@/pages/console/ai/provider";
 import AiSecretIndexPage from "@/pages/console/ai/secret";
@@ -98,6 +101,9 @@ function ConsoleRoutes() {
       { path: "/mcp", element: <AiMcpIndexPage /> },
       { path: "/extension", element: <ExtensionIndexPage /> },
       { path: "/secret", element: <AiSecretIndexPage /> },
+      { path: "/api-key", element: <ApiKeyIndexPage /> },
+      { path: "/models", element: <ModelIndexPage /> },
+      { path: "/models/usage/:id", element: <ModelUsagePage /> },
       { path: "/operation", element: <OperationIndexPage /> },
       {
         path: "operation/*",
