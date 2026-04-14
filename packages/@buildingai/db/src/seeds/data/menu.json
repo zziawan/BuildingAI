@@ -104,7 +104,7 @@
                 "code": "api-key",
                 "path": "api-key",
                 "icon": "key-round",
-                "component": "/console/ai/api-key",
+                "component": "/console/ai/api-key/list",
                 "permissionCode": "api-key:list",
                 "sort": 500,
                 "isHidden": 0,
@@ -151,7 +151,7 @@
             {
               "name": "模型",
               "code": "ai-models",
-              "path": "ai/model",
+              "path": "model",
               "icon": "bot",
               "component": "/console/ai/model",
               "permissionCode": "ai-models:list",
