@@ -58,54 +58,16 @@ export class AiModelWebController extends BaseController {
     }
 
     /**
-     * 提取并验证 API Key
-     */
-    private async extractAndValidateApiKey(req: Request): Promise<UserPlayground | null> {
-        const authHeader = req.headers.authorization;
-        if (!authHeader) {
-            return null;
-        }
-
-        const [type, token] = authHeader.split(" ");
-        if (type !== "Bearer" || !token) {
-            return null;
-        }
-
-        // 查找 API Key
-        const apiKey = await this.apiKeyService.findByKey(token);
-        if (!apiKey) {
-            return null;
-        }
-
-        // 获取用户信息
-        const user = await this.userRepository.findOne({ where: { id: apiKey.userId } });
-        if (!user) {
-            return null;
-        }
-
-        // 更新最后使用时间
-        await this.apiKeyService.updateLastUsed(apiKey.id);
-
-        // 返回用户上下文
-        return {
-            id: user.id,
-            username: user.username,
-            isRoot: user.isRoot,
-            permissions: [],
-            role: null,
-        };
-    }
-
-    /**
      * 调用模型进行对话
-     * @description 通过指定模型ID直接调用模型，支持流式响应
+     * @description 通过指定模型ID直接调用模型，支持流式和非流式响应
      * @route POST /chat
      * @compatibility Compatible with OpenAI API format
+     * @param body.stream - 是否使用流式响应，默认为true。设置为false时返回JSON格式的完整响应
      */
+    @Public()
     @Post("chat")
     async chatWithModel(
         @Body() body: any,
-        @Playground() playground: UserPlayground,
         @Res() res: Response,
         @Req() req: Request,
     ) {
@@ -125,25 +87,30 @@ export class AiModelWebController extends BaseController {
             if (req.aborted || req.socket?.destroyed) abortController.abort();
         }
 
-        // 尝试使用 API Key 认证（如果存在 Authorization header 且没有 playground）
-        let currentUser = playground;
-        if (req.headers.authorization && !playground) {
-            currentUser = await this.extractAndValidateApiKey(req);
-            if (!currentUser) {
-                throw HttpErrorFactory.unauthorized("Invalid API key");
-            }
-        }
-
-        if (!currentUser) {
-            throw HttpErrorFactory.unauthorized("Authentication required. Please provide a valid API key or login first.");
-        }
-
         // Get modelId from request body (OpenAI compatible)
         const modelId = body.model;
 
         if (!modelId) {
-            throw new Error("请提供模型ID (model parameter is required)");
+            throw HttpErrorFactory.badRequest("请提供模型ID (model parameter is required)");
         }
+
+        // Extract and validate API Key
+        const authorization = req.headers.authorization;
+        const apiKeyToken =
+            typeof authorization === "string" && authorization.startsWith("Bearer ")
+                ? authorization.slice(7).trim()
+                : null;
+
+        if (!apiKeyToken) {
+            throw HttpErrorFactory.unauthorized("请提供有效的 API Key：Authorization: Bearer <YOUR_API_KEY>");
+        }
+
+        const apiKey = await this.apiKeyService.findByKey(apiKeyToken);
+        if (!apiKey) {
+            throw HttpErrorFactory.unauthorized("无效的 API Key");
+        }
+
+        await this.apiKeyService.updateLastUsed(apiKey.id);
 
         // 验证模型是否存在且可用
         const model = await this.aiModelService.findOne({
@@ -152,11 +119,11 @@ export class AiModelWebController extends BaseController {
         });
 
         if (!model) {
-            throw new Error(`模型 ${modelId} 不存在或不可用`);
+            throw HttpErrorFactory.notFound(`模型 ${modelId} 不存在或不可用`);
         }
 
         if (!model.provider?.isActive) {
-            throw new Error(`模型提供商 ${model.provider?.name} 未激活`);
+            throw HttpErrorFactory.badRequest(`模型提供商 ${model.provider?.name} 未激活`);
         }
 
         // 构建消息 (OpenAI compatible format)
@@ -169,13 +136,13 @@ export class AiModelWebController extends BaseController {
         }
 
         if (!messages.length) {
-            throw new Error("请提供消息内容 (messages array is required)");
+            throw HttpErrorFactory.badRequest("请提供消息内容 (messages array is required)");
         }
 
         // 调用聊天完成服务
         await this.chatCompletionService.streamChat(
             {
-                userId: currentUser.id,
+                userId: apiKey.userId,
                 modelId: modelId,
                 conversationId: undefined, // 不保存对话记录
                 messages: messages,

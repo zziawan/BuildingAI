@@ -42,6 +42,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { PageContainer } from "@/layouts/console/_components/page-container";
 import { ProviderAvatar } from "@/components/provider-avatar";
 import { MODEL_FEATURES, MODEL_FEATURE_DESCRIPTIONS } from "@buildingai/ai-sdk/interfaces";
+import { getApiBaseUrl } from "@/utils/api";
 
 type ModelTypeForQuery = "llm" | "text-embedding" | "rerank" | "speech2text" | "tts";
 
@@ -120,7 +121,7 @@ const ModelUsagePage = () => {
   }
 
   // 生成平台API基础URL (OpenAI compatible format)
-  const baseUrl = `${window.location.origin}/api/web/ai-models/chat`;
+  const baseUrl = `${getApiBaseUrl()}/api/ai-models/chat`;
   
   // 生成代码示例
   const codeExamples = {
