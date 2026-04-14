@@ -13,6 +13,7 @@ import {
   Workflow,
   Wrench,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { ProviderAvatar } from "@/components/provider-avatar";
 import { MODEL_FEATURES, MODEL_FEATURE_DESCRIPTIONS } from "@buildingai/ai-sdk/interfaces";
@@ -33,9 +34,25 @@ const FEATURE_ICON_MAP: Record<string, React.ElementType> = {
 
 type ModelCardProps = {
   model: AiModelWithProvider;
+  isAvailable: boolean;
+  membershipLevels?: { id: string; name: string }[];
 };
 
-export const ModelCard = ({ model }: ModelCardProps) => {
+export const ModelCard = ({ model, isAvailable, membershipLevels }: ModelCardProps) => {
+  const navigate = useNavigate();
+
+  // 获取需要的会员等级名称
+  const requiredMembershipNames = model.membershipLevel
+    ?.map((id) => membershipLevels?.find((level) => level.id === id)?.name)
+    .filter(Boolean)
+    .join("、");
+
+  const handleUseClick = () => {
+    if (isAvailable) {
+      navigate(`/console/models/usage/${model.id}`);
+    }
+  };
+
   return (
     <div className="bg-card group/model-item relative flex flex-col gap-4 rounded-lg border p-4">
       {/* 头部信息 */}
@@ -54,8 +71,8 @@ export const ModelCard = ({ model }: ModelCardProps) => {
 
       {/* 状态和类型标签 */}
       <div className="flex min-h-6 flex-wrap items-center gap-2">
-        <Badge variant={model.isActive !== false ? "default" : "secondary"}>
-          {model.isActive !== false ? "可用" : "不可用"}
+        <Badge variant={isAvailable ? "default" : "secondary"}>
+          {isAvailable ? "可用" : "不可用"}
         </Badge>
         <Badge variant="outline">{model.modelType || "llm"}</Badge>
         {!model.billingRule?.power && (
@@ -97,10 +114,32 @@ export const ModelCard = ({ model }: ModelCardProps) => {
 
       {/* 操作按钮 */}
       <div className="mt-auto pt-2">
-        <Button variant="outline" size="sm" className="w-full" disabled>
-          使用
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="w-full" 
+          disabled={!isAvailable}
+          onClick={handleUseClick}
+        >
+          {isAvailable ? "使用" : "不可用"}
         </Button>
       </div>
+
+      {/* 会员限制提示 */}
+      {!isAvailable && requiredMembershipNames && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="absolute top-2 right-2">
+              <Badge variant="destructive" className="text-xs">
+                会员专享
+              </Badge>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>该模型仅限 {requiredMembershipNames} 使用</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
     </div>
   );
 };

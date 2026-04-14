@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@buildingai/ui/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@buildingai/ui/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@buildingai/ui/components/ui/tooltip";
 import {
   Activity,
@@ -276,20 +277,6 @@ callModel();`
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell className="font-medium">模型 ID</TableCell>
-                  <TableCell className="font-mono text-sm break-all">{model.id}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCopy(model.id, "modelId")}
-                    >
-                      <Copy className="w-4 h-4 mr-2" />
-                      {copiedParam === "modelId" ? "已复制" : "复制"}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
                   <TableCell className="font-medium">model</TableCell>
                   <TableCell className="font-mono text-sm break-all">{model.id}</TableCell>
                   <TableCell>
@@ -321,14 +308,7 @@ callModel();`
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled
-                    >
-                      <Copy className="w-4 h-4 mr-2" />
-                      复制
-                    </Button>
+                    <span className="text-sm text-muted-foreground">无需复制</span>
                   </TableCell>
                 </TableRow>
               </TableBody>
@@ -336,83 +316,45 @@ callModel();`
           </div>
         </div>
 
-        {/* 模型调用实例 */}
+        {/* 调用示例 */}
         <div className="border rounded-lg">
           <div className="p-6 border-b">
-            <h2 className="text-xl font-semibold">模型调用实例</h2>
+            <h2 className="text-xl font-semibold">调用示例</h2>
             <p className="text-sm text-muted-foreground mt-2">
-              以下是基于不同编程语言的调用示例代码
+              以下是使用不同编程语言调用该模型的示例代码
             </p>
           </div>
           <div className="p-6">
-            {/* Tab Buttons */}
-            <div className="flex gap-2 mb-4">
-              <Button
-                variant={activeTab === "curl" ? "default" : "outline"}
-                onClick={() => setActiveTab("curl")}
-              >
-                cURL
-              </Button>
-              <Button
-                variant={activeTab === "python" ? "default" : "outline"}
-                onClick={() => setActiveTab("python")}
-              >
-                Python
-              </Button>
-              <Button
-                variant={activeTab === "nodejs" ? "default" : "outline"}
-                onClick={() => setActiveTab("nodejs")}
-              >
-                Node.js
-              </Button>
-            </div>
-
-            {/* Code Display */}
-            <div className="relative">
-              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm min-h-[200px]">
-                <code>{codeExamples[activeTab]}</code>
-              </pre>
-              <Button
-                variant="outline"
-                size="sm"
-                className="absolute top-2 right-2"
-                onClick={() => handleCopy(codeExamples[activeTab], activeTab)}
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                {copiedParam === activeTab ? "已复制" : "复制代码"}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* 注意事项 */}
-        <div className="border rounded-lg border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-900">
-          <div className="p-6">
-            <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-200 mb-3">注意事项</h3>
-            <ul className="space-y-2 text-yellow-800 dark:text-yellow-200">
-              <li className="flex items-start gap-2">
-                <span className="mt-1">•</span>
-                <span>baseurl为平台提供的模型调用接口，所有请求需要经过用户认证</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-1">•</span>
-                <span>系统会根据模型配置自动进行会员等级验证及账户积分验证</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-1">•</span>
-                <span>接口具备计量计费功能，根据实际使用的token数量扣除相应积分</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-1">•</span>
-                <span>平台接口具备并发安全和高性能特性，支持大规模并发调用</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-1">•</span>
-                <span>
-                  请将示例代码中的 <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">YOUR_API_KEY</code> 替换为您的实际API Key
-                </span>
-              </li>
-            </ul>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "curl" | "python" | "nodejs")}>
+              <TabsList className="w-fit">
+                <TabsTrigger value="curl">cURL</TabsTrigger>
+                <TabsTrigger value="python">Python</TabsTrigger>
+                <TabsTrigger value="nodejs">Node.js</TabsTrigger>
+              </TabsList>
+              <div className="mt-4">
+                <TabsContent value="curl" className="mt-0">
+                  <div className="bg-muted p-4 rounded-md overflow-x-auto">
+                    <pre className="text-xs">
+                      <code>{codeExamples.curl}</code>
+                    </pre>
+                  </div>
+                </TabsContent>
+                <TabsContent value="python" className="mt-0">
+                  <div className="bg-muted p-4 rounded-md overflow-x-auto">
+                    <pre className="text-xs">
+                      <code>{codeExamples.python}</code>
+                    </pre>
+                  </div>
+                </TabsContent>
+                <TabsContent value="nodejs" className="mt-0">
+                  <div className="bg-muted p-4 rounded-md overflow-x-auto">
+                    <pre className="text-xs">
+                      <code>{codeExamples.nodejs}</code>
+                    </pre>
+                  </div>
+                </TabsContent>
+              </div>
+            </Tabs>
           </div>
         </div>
       </div>
