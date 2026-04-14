@@ -1,6 +1,5 @@
 import { useAiModelsListQuery } from "@buildingai/services/web";
 import { useAuthStore } from "@buildingai/stores";
-import { BooleanNumber } from "@buildingai/constants/shared/status-codes.constant";
 import { Badge } from "@buildingai/ui/components/ui/badge";
 import { Button } from "@buildingai/ui/components/ui/button";
 import { Input } from "@buildingai/ui/components/ui/input";
@@ -32,7 +31,6 @@ import {
   Wrench,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 import { PageContainer } from "@/layouts/console/_components/page-container";
 import { ProviderAvatar } from "@/components/provider-avatar";
@@ -56,7 +54,6 @@ const FEATURE_ICON_MAP: Record<string, React.ElementType> = {
  * 模型列表页面
  */
 const ModelIndexPage = () => {
-  const navigate = useNavigate();
   const [nameQuery, setNameQuery] = useState("");
   const [typeQuery, setTypeQuery] = useState<ModelTypeForQuery | "all">("all");
 
@@ -64,22 +61,7 @@ const ModelIndexPage = () => {
   
   // 检查用户是否登录
   const token = useAuthStore((state) => state.auth.token);
-  const userInfo = useAuthStore((state) => state.auth.userInfo);
   const isLogin = !!token;
-
-  const hasModelAccessPermission = useMemo(() => {
-    const permissionCodes = userInfo?.permissionsCodes ?? [];
-    const isRoot = userInfo?.isRoot === BooleanNumber.YES;
-    return isRoot || permissionCodes.includes("ai-models:list");
-  }, [userInfo]);
-
-  const isModelAvailable = (model: any) => {
-    return (
-      Boolean(model.isActive) &&
-      Boolean(model.provider?.isActive) &&
-      hasModelAccessPermission
-    );
-  };
 
   // 如果用户未登录，重定向到登录页面
   if (!isLogin) {
@@ -269,9 +251,9 @@ const ModelIndexPage = () => {
                     {/* 状态 */}
                     <TableCell>
                       <Badge
-                        variant={isModelAvailable(model) ? "default" : "secondary"}
+                        variant={model.isActive !== false ? "default" : "secondary"}
                       >
-                        {isModelAvailable(model) ? "可用" : "不可用"}
+                        {model.isActive !== false ? "可用" : "不可用"}
                       </Badge>
                     </TableCell>
 
@@ -313,12 +295,7 @@ const ModelIndexPage = () => {
 
                     {/* 操作 */}
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/console/models/usage/${model.id}`)}
-                        disabled={!isModelAvailable(model)}
-                      >
+                      <Button variant="outline" size="sm" disabled>
                         使用
                       </Button>
                     </TableCell>

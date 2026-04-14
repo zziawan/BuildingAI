@@ -104,7 +104,7 @@
                 "code": "api-key",
                 "path": "api-key",
                 "icon": "key-round",
-                "component": "/console/ai/api-key/list",
+                "component": "/console/ai/api-key",
                 "permissionCode": "api-key:list",
                 "sort": 500,
                 "isHidden": 0,
@@ -147,18 +147,20 @@
                 "type": 2,
                 "sourceType": 1
             },
-                        {
-                            "name": "模型",
-                            "code": "ai-models",
-                            "path": "models",
-                            "icon": "bot",
-                            "component": "/console/ai/model",
-                            "permissionCode": "ai-models:list",
-                            "sort": 400,
-                            "isHidden": 0,
-                            "type": 2,
-                            "sourceType": 1
-                        },
+            
+            {
+              "name": "模型",
+              "code": "ai-models",
+              "path": "ai/model",
+              "icon": "bot",
+              "component": "/console/ai/model",
+              "permissionCode": "ai-models:list",
+              "sort": 400,
+              "isHidden": 0,
+              "type": 2,
+              "sourceType": 1
+            },
+            
             {
                 "name": "应用管理",
                 "code": "plugin-manage",

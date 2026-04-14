@@ -7,6 +7,8 @@ import { Permissions } from "@common/decorators/permissions.decorator";
 import { BatchDeleteMenuDto, CreateMenuDto, QueryMenuDto, UpdateMenuDto } from "@modules/menu/dto";
 import { MenuService } from "@modules/menu/services/menu.service";
 import { Body, Delete, Get, Param, Post, Put, Query } from "@nestjs/common";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * 菜单控制器
@@ -161,5 +163,43 @@ export class MenuConsoleController extends BaseController {
             success: true,
             message: "批量删除成功",
         };
+    }
+
+    /**
+     * 重新同步菜单数据（从menu.json）
+     *
+     * @returns 操作结果
+     */
+    @Post("resync")
+    @Permissions({
+        code: "resync",
+        name: "重新同步菜单",
+        description: "从menu.json文件重新同步菜单数据到数据库",
+    })
+    async resyncMenus() {
+        try {
+            // 读取menu.json文件
+            const menuJsonPath = path.join(
+                process.cwd(),
+                "packages/@buildingai/db/src/seeds/data/menu.json",
+            );
+            const menuData = JSON.parse(fs.readFileSync(menuJsonPath, "utf-8"));
+
+            // 使用admin用户ID（通常是第一个用户或特定ID）
+            // 这里我们使用一个临时的系统用户ID
+            const systemUserId = "00000000-0000-0000-0000-000000000001";
+
+            await this.menuService.initMenu(menuData, systemUserId);
+
+            return {
+                success: true,
+                message: "菜单数据同步成功",
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `菜单数据同步失败: ${error.message}`,
+            };
+        }
     }
 }

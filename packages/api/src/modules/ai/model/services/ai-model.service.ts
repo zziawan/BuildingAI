@@ -124,6 +124,7 @@ export class AiModelService extends BaseService<AiModel> {
         try {
             const models = await this.findAll({
                 where: { isActive: true },
+                relations: ["provider"],
                 order: {
                     sortOrder: "DESC",
                     createdAt: "DESC",

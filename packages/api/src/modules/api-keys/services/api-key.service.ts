@@ -67,4 +67,11 @@ export class ApiKeyService {
     async updateLastUsed(id: string): Promise<void> {
         await this.apiKeyRepository.update(id, { lastUsedAt: new Date() });
     }
+
+    /**
+     * 根据 API Key 值查找并验证
+     */
+    async findByKey(apiKey: string): Promise<ApiKey | null> {
+        return this.apiKeyRepository.findOne({ where: { key: apiKey } });
+    }
 }

@@ -119,7 +119,7 @@ const ModelUsagePage = () => {
   }
 
   // 生成平台API基础URL (OpenAI compatible format)
-  const baseUrl = `${window.location.origin}/api/v1/chat`;
+  const baseUrl = `${window.location.origin}/api/web/ai-models/chat`;
   
   // 生成代码示例
   const codeExamples = {
@@ -272,6 +272,20 @@ callModel();`
                     >
                       <Copy className="w-4 h-4 mr-2" />
                       {copiedParam === "baseurl" ? "已复制" : "复制"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">模型 ID</TableCell>
+                  <TableCell className="font-mono text-sm break-all">{model.id}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCopy(model.id, "modelId")}
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      {copiedParam === "modelId" ? "已复制" : "复制"}
                     </Button>
                   </TableCell>
                 </TableRow>

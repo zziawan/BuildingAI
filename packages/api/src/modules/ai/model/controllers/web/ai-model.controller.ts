@@ -9,6 +9,11 @@ import { Body, Get, Param, Post, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { Playground } from "@buildingai/decorators/playground.decorator";
 import { type UserPlayground } from "@buildingai/db";
+import { ApiKeyService } from "@modules/api-keys/services/api-key.service";
+import { InjectRepository } from "@buildingai/db/@nestjs/typeorm";
+import { User } from "@buildingai/db/entities";
+import { Repository } from "@buildingai/db/typeorm";
+import { HttpErrorFactory } from "@buildingai/errors";
 
 /**
  * AI模型信息控制器（前台）
@@ -21,6 +26,9 @@ export class AiModelWebController extends BaseController {
         private readonly aiModelService: AiModelService,
         private readonly dictService: DictService,
         private readonly chatCompletionService: ChatCompletionService,
+        private readonly apiKeyService: ApiKeyService,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
     ) {
         super();
     }
@@ -50,6 +58,45 @@ export class AiModelWebController extends BaseController {
     }
 
     /**
+     * 提取并验证 API Key
+     */
+    private async extractAndValidateApiKey(req: Request): Promise<UserPlayground | null> {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) {
+            return null;
+        }
+
+        const [type, token] = authHeader.split(" ");
+        if (type !== "Bearer" || !token) {
+            return null;
+        }
+
+        // 查找 API Key
+        const apiKey = await this.apiKeyService.findByKey(token);
+        if (!apiKey) {
+            return null;
+        }
+
+        // 获取用户信息
+        const user = await this.userRepository.findOne({ where: { id: apiKey.userId } });
+        if (!user) {
+            return null;
+        }
+
+        // 更新最后使用时间
+        await this.apiKeyService.updateLastUsed(apiKey.id);
+
+        // 返回用户上下文
+        return {
+            id: user.id,
+            username: user.username,
+            isRoot: user.isRoot,
+            permissions: [],
+            role: null,
+        };
+    }
+
+    /**
      * 调用模型进行对话
      * @description 通过指定模型ID直接调用模型，支持流式响应
      * @route POST /chat
@@ -76,6 +123,19 @@ export class AiModelWebController extends BaseController {
             req.on("aborted", handleDisconnect);
             res.on("close", handleDisconnect);
             if (req.aborted || req.socket?.destroyed) abortController.abort();
+        }
+
+        // 尝试使用 API Key 认证（如果存在 Authorization header 且没有 playground）
+        let currentUser = playground;
+        if (req.headers.authorization && !playground) {
+            currentUser = await this.extractAndValidateApiKey(req);
+            if (!currentUser) {
+                throw HttpErrorFactory.unauthorized("Invalid API key");
+            }
+        }
+
+        if (!currentUser) {
+            throw HttpErrorFactory.unauthorized("Authentication required. Please provide a valid API key or login first.");
         }
 
         // Get modelId from request body (OpenAI compatible)
@@ -115,7 +175,7 @@ export class AiModelWebController extends BaseController {
         // 调用聊天完成服务
         await this.chatCompletionService.streamChat(
             {
-                userId: playground.id,
+                userId: currentUser.id,
                 modelId: modelId,
                 conversationId: undefined, // 不保存对话记录
                 messages: messages,
