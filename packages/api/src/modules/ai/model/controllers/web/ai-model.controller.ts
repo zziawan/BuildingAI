@@ -14,6 +14,50 @@ import { InjectRepository } from "@buildingai/db/@nestjs/typeorm";
 import { User } from "@buildingai/db/entities";
 import { Repository } from "@buildingai/db/typeorm";
 import { HttpErrorFactory } from "@buildingai/errors";
+import type { UIMessage } from "ai";
+import { generateId } from "ai";
+
+/**
+ * 将 OpenAI 格式的消息转换为 UIMessage 格式
+ * 特别针对 ERNIE 等模型优化，确保 content 为纯字符串
+ * @param openaiMessages OpenAI 标准格式的消息数组
+ * @returns UIMessage 格式的消息数组
+ */
+function convertOpenAIMessagesToUIMessages(openaiMessages: any[]): UIMessage[] {
+    return openaiMessages.map((msg, index) => {
+        // 确保 content 是字符串（针对 ERNIE 等模型的严格要求）
+        let contentText = "";
+        
+        if (typeof msg.content === "string") {
+            // ✅ 已经是字符串，直接使用
+            contentText = msg.content;
+        } else if (Array.isArray(msg.content)) {
+            // ⚠️ content 是数组，提取所有文本部分并拼接
+            // ERNIE 模型不支持数组格式，必须转换为字符串
+            contentText = msg.content
+                .filter((item: any) => item.type === "text")
+                .map((item: any) => item.text || "")
+                .join("\n");
+        } else if (msg.content && typeof msg.content === "object") {
+            // ⚠️ content 是对象，尝试提取 text 字段
+            contentText = msg.content.text || JSON.stringify(msg.content);
+        }
+
+        return {
+            id: msg.id || generateId(),
+            role: msg.role as "user" | "assistant" | "system",
+            parts: [
+                {
+                    type: "text",
+                    text: contentText,
+                },
+            ],
+            metadata: {
+                sequence: index,
+            },
+        } as UIMessage;
+    });
+}
 
 /**
  * AI模型信息控制器（前台）
@@ -139,13 +183,17 @@ export class AiModelWebController extends BaseController {
             throw HttpErrorFactory.badRequest("请提供消息内容 (messages array is required)");
         }
 
-        // 调用聊天完成服务
+        // ✅ 将 OpenAI 格式的消息转换为 UIMessage 格式
+        // 这对于 ERNIE 等模型至关重要，确保 content 是纯字符串而非数组/对象
+        const uiMessages = convertOpenAIMessagesToUIMessages(messages);
+
+        // 调用聊天完成服务（内部会再次通过 convertToModelMessages 处理）
         await this.chatCompletionService.streamChat(
             {
                 userId: apiKey.userId,
                 modelId: modelId,
                 conversationId: undefined, // 不保存对话记录
-                messages: messages,
+                messages: uiMessages,  // ✅ 使用转换后的 UIMessage 格式
                 title: undefined,
                 systemPrompt: body.system_prompt || body.systemPrompt,
                 mcpServerIds: body.mcp_server_ids || body.mcpServerIds || [],

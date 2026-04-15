@@ -141,6 +141,32 @@ function syncEnvFile(examplePath, envPath, rootVersion) {
         }
     }
 
+    // ⚠️ Safety check: Warn if too many variables would be removed
+    const removalRatio = existingVariables.size > 0 ? removedKeys.length / existingVariables.size : 0;
+    if (removalRatio > 0.5 && removedKeys.length > 10) {
+        console.log("");
+        console.log(chalk.red("⚠️  WARNING: Large number of variables would be removed!"));
+        console.log(chalk.red(`   ${removedKeys.length} out of ${existingVariables.size} variables (${Math.round(removalRatio * 100)}%)`));
+        console.log(chalk.yellow("   This might indicate .env.example is incomplete or corrupted."));
+        console.log("");
+        console.log(chalk.yellow("   Possible causes:"));
+        console.log(chalk.yellow("   - .env.example file was accidentally modified"));
+        console.log(chalk.yellow("   - You're on a different branch with outdated .env.example"));
+        console.log(chalk.yellow("   - Git merge conflict affected .env.example"));
+        console.log("");
+        console.log(chalk.cyan("   Recommended actions:"));
+        console.log(chalk.cyan("   1. Check .env.example integrity: git diff HEAD -- .env.example"));
+        console.log(chalk.cyan("   2. Restore .env.example: git checkout HEAD -- .env.example"));
+        console.log(chalk.cyan("   3. Or skip sync and manually review changes"));
+        console.log("");
+        
+        // Ask for confirmation (in non-interactive mode, just warn)
+        if (!process.env.FORCE_SYNC_ENV) {
+            console.log(chalk.red("\n❌ Sync aborted for safety. Set FORCE_SYNC_ENV=1 to override.\n"));
+            process.exit(1);
+        }
+    }
+
     // Build result: preserve .env structure (comments, empty lines, order)
     // Only modify variables: update values, remove obsolete, append new
     const result = [];
