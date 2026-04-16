@@ -16,10 +16,22 @@ export class ApiKey extends SoftDeleteBaseEntity {
     name: string;
 
     /**
-     * API Key 值
+     * API Key 摘要值
      */
-    @Column({ unique: true, comment: "API Key 值" })
-    key: string;
+    @Column({ unique: true, comment: "API Key 摘要值" })
+    keyHash: string;
+
+    /**
+     * API Key 前缀
+     */
+    @Column({ comment: "API Key 前缀" })
+    keyPrefix: string;
+
+    /**
+     * API Key 后缀
+     */
+    @Column({ comment: "API Key 后缀" })
+    keySuffix: string;
 
     /**
      * 用户 ID

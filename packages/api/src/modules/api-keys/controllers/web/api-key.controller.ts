@@ -34,18 +34,19 @@ export class ApiKeyWebController {
      */
     @Patch(":id")
     async update(
+        @Playground() user: UserPlayground,
         @Param("id") id: string,
         @Body() updateApiKeyDto: UpdateApiKeyDto,
     ) {
-        return this.apiKeyService.update(id, updateApiKeyDto);
+        return this.apiKeyService.update(id, user.id, updateApiKeyDto);
     }
 
     /**
      * 删除 API Key
      */
     @Delete(":id")
-    async remove(@Param("id") id: string) {
-        await this.apiKeyService.remove(id);
+    async remove(@Playground() user: UserPlayground, @Param("id") id: string) {
+        await this.apiKeyService.remove(id, user.id);
         return { message: "API Key deleted successfully" };
     }
 }

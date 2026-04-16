@@ -1,6 +1,9 @@
-import { useApiKeysQuery, useCreateApiKeyMutation, useDeleteApiKeyMutation } from "@buildingai/services/web";
+import {
+  useApiKeysQuery,
+  useCreateApiKeyMutation,
+  useDeleteApiKeyMutation,
+} from "@buildingai/services/web";
 import { useAuthStore } from "@buildingai/stores";
-import type { ApiKey } from "@buildingai/db/entities";
 import { Button } from "@buildingai/ui/components/ui/button";
 import {
   Table,
@@ -10,9 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@buildingai/ui/components/ui/table";
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { ApiKeyCreatedDialog } from "@/components/api-key-created-dialog";
 import { PageContainer } from "@/layouts/console/_components/page-container";
 import { CreateApiKeyDialog } from "./_components/create-api-key-dialog";
 
@@ -21,7 +25,7 @@ import { CreateApiKeyDialog } from "./_components/create-api-key-dialog";
  */
 const ApiKeyIndexPage = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [, setCopiedId] = useState<string | null>(null);
+  const [createdApiKey, setCreatedApiKey] = useState<{ name: string; key: string } | null>(null);
   const { data: apiKeys = [], isLoading, error, refetch } = useApiKeysQuery();
   const createApiKeyMutation = useCreateApiKeyMutation();
   const deleteApiKeyMutation = useDeleteApiKeyMutation();
@@ -115,7 +119,8 @@ const ApiKeyIndexPage = () => {
   }
 
   const handleCreate = async (name: string) => {
-    await createApiKeyMutation.mutateAsync({ name });
+    const created = await createApiKeyMutation.mutateAsync({ name });
+    setCreatedApiKey({ name: created.name, key: created.key });
     refetch();
     setCreateDialogOpen(false);
   };
@@ -125,12 +130,6 @@ const ApiKeyIndexPage = () => {
       await deleteApiKeyMutation.mutateAsync(id);
       refetch();
     }
-  };
-
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
   };
 
   return (
@@ -166,22 +165,12 @@ const ApiKeyIndexPage = () => {
               <TableBody>
                 {apiKeys.map((apiKey: ApiKey) => (
                   <TableRow key={apiKey.id}>
-                    <TableCell className="font-medium">{apiKey.name}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
+                      <TableCell className="font-medium">{apiKey.name}</TableCell>
+                      <TableCell>
                         <code className="rounded bg-gray-100 px-2 py-1 text-sm font-mono">
-                          {apiKey.key.slice(0, 8)}...{apiKey.key.slice(-8)}
+                          {apiKey.maskedKey}
                         </code>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCopy(apiKey.key, apiKey.id)}
-                          title="复制完整 key"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                      </TableCell>
                     <TableCell>
                       {new Date(apiKey.createdAt).toLocaleString("zh-CN")}
                     </TableCell>
@@ -210,6 +199,16 @@ const ApiKeyIndexPage = () => {
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
           onCreate={handleCreate}
+        />
+        <ApiKeyCreatedDialog
+          open={!!createdApiKey}
+          onOpenChange={(open) => {
+            if (!open) {
+              setCreatedApiKey(null);
+            }
+          }}
+          apiKeyName={createdApiKey?.name ?? ""}
+          apiKeyValue={createdApiKey?.key ?? ""}
         />
       </div>
     </PageContainer>

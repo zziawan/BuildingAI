@@ -1,19 +1,30 @@
-import type { ApiKey } from "@buildingai/db/entities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiHttpClient } from "../base";
+
+export type ApiKeyListItem = {
+  id: string;
+  name: string;
+  maskedKey: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string | null;
+};
 
 export type CreateApiKeyRequest = {
   name: string;
 };
 
-export type CreateApiKeyResponse = ApiKey;
+export type CreateApiKeyResponse = ApiKeyListItem & {
+  key: string;
+};
 
 export type UpdateApiKeyRequest = {
   name?: string;
 };
 
-export type UpdateApiKeyResponse = ApiKey;
+export type UpdateApiKeyResponse = ApiKeyListItem;
 
 /**
  * 获取 API Keys 查询
@@ -22,7 +33,7 @@ export const useApiKeysQuery = () => {
   return useQuery({
     queryKey: ["api-keys"],
     queryFn: async () => {
-      const response = await apiHttpClient.get<ApiKey[]>("/api-keys");
+      const response = await apiHttpClient.get<ApiKeyListItem[]>("/api-keys");
       return response;
     },
   });
@@ -52,7 +63,7 @@ export const useUpdateApiKeyMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: UpdateApiKeyRequest }) => {
+    mutationFn: async ({ id, data }: { id: string; data: UpdateApiKeyRequest }) => {
       const response = await apiHttpClient.patch<UpdateApiKeyResponse>(`/api-keys/${id}`, data);
       return response;
     },

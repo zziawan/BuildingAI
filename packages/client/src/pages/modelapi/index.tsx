@@ -1,4 +1,8 @@
-import { useApiKeysQuery, useCreateApiKeyMutation, useDeleteApiKeyMutation } from "@buildingai/services/web";
+import {
+  useApiKeysQuery,
+  useCreateApiKeyMutation,
+  useDeleteApiKeyMutation,
+} from "@buildingai/services/web";
 import { Button } from "@buildingai/ui/components/ui/button";
 import {
   Table,
@@ -11,6 +15,7 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { ApiKeyCreatedDialog } from "@/components/api-key-created-dialog";
 import { CreateApiKeyDialog } from "./_components/create-api-key-dialog";
 
 /**
@@ -18,17 +23,19 @@ import { CreateApiKeyDialog } from "./_components/create-api-key-dialog";
  */
 const ApiKeysPage = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createdApiKey, setCreatedApiKey] = useState<{ name: string; key: string } | null>(null);
   const { data: apiKeys = [], refetch } = useApiKeysQuery();
   const createApiKeyMutation = useCreateApiKeyMutation();
   const deleteApiKeyMutation = useDeleteApiKeyMutation();
 
   const handleCreate = async (name: string) => {
-    await createApiKeyMutation.mutateAsync({ name });
+    const created = await createApiKeyMutation.mutateAsync({ name });
+    setCreatedApiKey({ name: created.name, key: created.key });
     refetch();
     setCreateDialogOpen(false);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (confirm("确定要删除这个 API Key 吗？")) {
       await deleteApiKeyMutation.mutateAsync(id);
       refetch();
@@ -67,7 +74,7 @@ const ApiKeysPage = () => {
               <TableRow key={apiKey.id}>
                 <TableCell>{apiKey.name}</TableCell>
                 <TableCell className="font-mono text-sm">
-                  {apiKey.key.slice(0, 8)}...{apiKey.key.slice(-8)}
+                  {apiKey.maskedKey}
                 </TableCell>
                 <TableCell>
                   {new Date(apiKey.createdAt).toLocaleString()}
@@ -95,6 +102,16 @@ const ApiKeysPage = () => {
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
           onCreate={handleCreate}
+        />
+        <ApiKeyCreatedDialog
+          open={!!createdApiKey}
+          onOpenChange={(open) => {
+            if (!open) {
+              setCreatedApiKey(null);
+            }
+          }}
+          apiKeyName={createdApiKey?.name ?? ""}
+          apiKeyValue={createdApiKey?.key ?? ""}
         />
       </div>
     </div>
