@@ -18,6 +18,9 @@ import DatasetsIndexPage from "@/pages/datasets";
 import DatasetsLayout from "@/pages/datasets/_layouts";
 import DatasetsDetailPage from "@/pages/datasets/detail";
 import InstallPage from "@/pages/install";
+import ModelIndexPage from "@/pages/console/ai/model";
+import ModelUsagePage from "@/pages/console/ai/model/usage";
+import ModelApiPage from "@/pages/modelapi";
 
 import ConsoleLayout from "../layouts/console";
 import DynamicHomePage from "../pages";
@@ -158,6 +161,30 @@ export const router = createBrowserRouter([
           {
             path: "/agents/workspace",
             element: <AgentsWorkspacePage />,
+          },
+          {
+            path: "/model",
+            element: (
+              <AuthGuard>
+                <ModelIndexPage />
+              </AuthGuard>
+            ),
+          },
+          {
+            path: "/model/usage/:id",
+            element: (
+              <AuthGuard>
+                <ModelUsagePage />
+              </AuthGuard>
+            ),
+          },
+          {
+            path: "/modelapi",
+            element: (
+              <AuthGuard>
+                <ModelApiPage />
+              </AuthGuard>
+            ),
           },
           {
             path: "*",

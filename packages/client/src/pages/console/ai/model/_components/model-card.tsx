@@ -49,7 +49,7 @@ export const ModelCard = ({ model, isAvailable, membershipLevels }: ModelCardPro
 
   const handleUseClick = () => {
     if (isAvailable) {
-      navigate(`/console/models/usage/${model.id}`);
+      navigate(`/model/usage/${model.id}`);
     }
   };
 

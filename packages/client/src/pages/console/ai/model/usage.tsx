@@ -302,7 +302,7 @@ callModel();`
                         variant="link"
                         size="sm"
                         className="p-0 h-auto"
-                        onClick={() => navigate("/console/api-key")}
+                        onClick={() => navigate("/modelapi")}
                       >
                         查看 API Keys
                       </Button>

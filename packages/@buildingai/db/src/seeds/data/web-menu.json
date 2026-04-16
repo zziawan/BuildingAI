@@ -14,6 +14,32 @@
             }
         },
         {
+            "id": "menu_model",
+            "icon": "bot",
+            "title": "模型",
+            "link": {
+                "label": "模型",
+                "path": "/model",
+                "type": "system",
+                "query": {},
+                "component": "/src/pages/console/ai/model/index.tsx",
+                "target": "_self"
+            }
+        },
+        {
+            "id": "menu_user_api_key",
+            "icon": "key-round",
+            "title": "用户API-Key",
+            "link": {
+                "label": "用户API-Key",
+                "path": "/modelapi",
+                "type": "system",
+                "query": {},
+                "component": "/src/pages/modelapi/index.tsx",
+                "target": "_self"
+            }
+        },
+        {
             "id": "menu_app-center",
             "icon": "layout-grid",
             "title": "应用",

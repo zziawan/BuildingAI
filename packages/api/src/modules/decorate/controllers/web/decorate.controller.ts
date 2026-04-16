@@ -11,6 +11,9 @@ import { Get } from "@nestjs/common";
  */
 const DICT_GROUP = "decorate";
 const DICT_KEY = "menu-config";
+const HOME_MENU_ID = "menu_home_fixed";
+const MODEL_MENU_ID = "menu_model";
+const USER_API_KEY_MENU_ID = "menu_user_api_key";
 
 export interface DecorateMenuLink {
     label: string;
@@ -39,6 +42,36 @@ const DEFAULT_CONFIG: DecorateMenuConfig = {
     menus: [],
 };
 
+const DEFAULT_MODEL_MENU: DecorateMenuItem = {
+    id: MODEL_MENU_ID,
+    icon: "bot",
+    title: "模型",
+    isHidden: false,
+    link: {
+        label: "模型",
+        path: "/model",
+        type: "system",
+        query: {},
+        component: "/src/pages/console/ai/model/index.tsx",
+        target: "_self",
+    },
+};
+
+const DEFAULT_USER_API_KEY_MENU: DecorateMenuItem = {
+    id: USER_API_KEY_MENU_ID,
+    icon: "key-round",
+    title: "用户API-Key",
+    isHidden: false,
+    link: {
+        label: "用户API-Key",
+        path: "/modelapi",
+        type: "system",
+        query: {},
+        component: "/src/pages/modelapi/index.tsx",
+        target: "_self",
+    },
+};
+
 @WebController("decorate")
 export class DecorateWebController extends BaseController {
     constructor(private readonly dictService: DictService) {
@@ -57,9 +90,49 @@ export class DecorateWebController extends BaseController {
         const config = { ...DEFAULT_CONFIG, ...(stored || {}) };
 
         if (config.menus && Array.isArray(config.menus)) {
-            config.menus = config.menus.filter((menu) => !menu.isHidden);
+            config.menus = this.ensureDefaultHomeMenus(config.menus).filter((menu) => !menu.isHidden);
         }
 
         return config;
+    }
+
+    private ensureDefaultHomeMenus(menus: DecorateMenuItem[]): DecorateMenuItem[] {
+        const modelMenu = this.mergeMenu(
+            menus.find((menu) => menu.id === MODEL_MENU_ID),
+            DEFAULT_MODEL_MENU,
+        );
+        const userApiKeyMenu = this.mergeMenu(
+            menus.find((menu) => menu.id === USER_API_KEY_MENU_ID),
+            DEFAULT_USER_API_KEY_MENU,
+        );
+
+        const menusWithoutTargets = menus.filter(
+            (menu) => menu.id !== MODEL_MENU_ID && menu.id !== USER_API_KEY_MENU_ID,
+        );
+
+        const homeMenuIndex = menusWithoutTargets.findIndex((menu) => menu.id === HOME_MENU_ID);
+        const insertIndex = homeMenuIndex >= 0 ? homeMenuIndex + 1 : 0;
+
+        return [
+            ...menusWithoutTargets.slice(0, insertIndex),
+            modelMenu,
+            userApiKeyMenu,
+            ...menusWithoutTargets.slice(insertIndex),
+        ];
+    }
+
+    private mergeMenu(
+        existingMenu: DecorateMenuItem | undefined,
+        defaultMenu: DecorateMenuItem,
+    ): DecorateMenuItem {
+        return {
+            ...existingMenu,
+            ...defaultMenu,
+            link: {
+                ...(existingMenu?.link ?? {}),
+                ...defaultMenu.link,
+            },
+            isHidden: false,
+        };
     }
 }
