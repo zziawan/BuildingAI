@@ -30,16 +30,85 @@ import dynamicIconImports from "lucide-react/dynamicIconImports";
 import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+const RESTRICTED_ROOT_CODES = new Set(["workspace", "system-manage"]);
+
 /**
- * Filter visible menu items (type !== 3 && isHidden !== 1)
+ * Check if user has permission to access a menu item
  */
-function filterVisibleMenus(menus: MenuItem[]): MenuItem[] {
+function hasMenuPermission(menu: MenuItem, userInfo?: any): boolean {
+  // Super admin can access all menus
+  if (userInfo?.isRoot) {
+    return true;
+  }
+
+  const userPermissions = userInfo?.permissionsCodes ?? [];
+
+  // If menu has no permission code, it's accessible to everyone
+  if (!menu.permissionCode) {
+    return true;
+  }
+
+  // Check if user has the required permission
+  return userPermissions.includes(menu.permissionCode);
+}
+
+/**
+ * Filter visible menu items based on type, hidden status, and permissions
+ */
+function filterVisibleMenus(menus: MenuItem[], userInfo?: any, inRestrictedBranch = false): MenuItem[] {
   return menus
-    .filter((menu) => menu.type !== 3 && menu.isHidden !== 1)
-    .map((menu) => ({
-      ...menu,
-      children: menu.children ? filterVisibleMenus(menu.children) : [],
-    }));
+    .map((menu) => {
+      const currentInRestrictedBranch = inRestrictedBranch || RESTRICTED_ROOT_CODES.has(menu.code || "");
+      const children = menu.children
+        ? filterVisibleMenus(menu.children, userInfo, currentInRestrictedBranch)
+        : [];
+
+      return {
+        menu: {
+          ...menu,
+          children,
+        },
+        currentInRestrictedBranch,
+      };
+    })
+    .filter(({ menu, currentInRestrictedBranch }) => {
+      if (menu.type === 3 || menu.isHidden === 1) {
+        return false;
+      }
+
+      const hasVisibleChildren = !!menu.children && menu.children.length > 0;
+
+      if (!userInfo?.isRoot && currentInRestrictedBranch) {
+        if (!menu.permissionCode) {
+          return hasVisibleChildren;
+        }
+      }
+
+      if (!hasMenuPermission(menu, userInfo)) {
+        return hasVisibleChildren;
+      }
+
+      return true;
+    })
+    .map(({ menu }) => menu)
+    // Remove menus with no visible children (for directory/menu types)
+    .filter((menu) => {
+      // Button type (3) doesn't need children
+      if (menu.type === 3) {
+        return true;
+      }
+      // Directory (0) or Menu (1) types should have at least one visible child,
+      // or be a directly routable menu with component
+      if (menu.type === 0 || menu.type === 1) {
+        const hasVisibleChildren =
+          !!menu.children
+          && menu.children.length > 0
+          && menu.children.some((child) => child.type !== 3 && child.isHidden !== 1);
+
+        return hasVisibleChildren || !!menu.component;
+      }
+      return true;
+    });
 }
 
 /**
@@ -48,7 +117,17 @@ function filterVisibleMenus(menus: MenuItem[]): MenuItem[] {
 function getVisibleChildren(menu: MenuItem): MenuItem[] {
   if (!menu.children?.length) return [];
   return menu.children.filter(
-    (child) => child.type !== 3 && child.isHidden !== 1 && (child.type === 1 || child.component),
+    (child) => {
+      // Filter by type, hidden status, and component
+      if (child.type === 3 || child.isHidden === 1) {
+        return false;
+      }
+      if (!(child.type === 1 || child.component)) {
+        return false;
+      }
+
+      return true;
+    }
   );
 }
 
@@ -189,8 +268,8 @@ export function NavMain() {
 
   const menuGroups = useMemo(() => {
     if (!userInfo?.menus) return [];
-    return filterVisibleMenus(userInfo.menus);
-  }, [userInfo?.menus]);
+    return filterVisibleMenus(userInfo.menus, userInfo);
+  }, [userInfo?.menus, userInfo]);
 
   return (
     <>

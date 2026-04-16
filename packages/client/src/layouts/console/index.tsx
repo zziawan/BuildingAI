@@ -6,7 +6,14 @@ import type { MenuItem } from "@buildingai/web-types";
 import type { ComponentType } from "react";
 import { useMemo } from "react";
 import type { RouteObject } from "react-router-dom";
-import { useRoutes } from "react-router-dom";
+import { Navigate, useLocation, useRoutes } from "react-router-dom";
+
+import {
+  WEB_HOME_PATH,
+  getFirstConsoleMenuPath,
+  hasConsoleAccess,
+  hasConsoleRouteAccess,
+} from "@/utils/permission";
 
 import AccessMenuIndexPage from "@/pages/console/access/menu";
 import AccessPermissionIndexPage from "@/pages/console/access/permission";
@@ -273,6 +280,32 @@ function ConsoleRoutes() {
 }
 
 export default function ConsoleLayout({ children }: { children?: React.ReactNode }) {
+  const location = useLocation();
+  const { userInfo } = useAuthStore((state) => state.auth);
+
+  const firstConsolePath = useMemo(
+    () => getFirstConsoleMenuPath(userInfo?.menus ?? [], userInfo),
+    [userInfo?.menus, userInfo],
+  );
+
+  if (!userInfo) {
+    return null;
+  }
+
+  if (!hasConsoleAccess(userInfo)) {
+    return <Navigate to={WEB_HOME_PATH} replace />;
+  }
+
+  const currentPath = location.pathname.replace(/\/$/, "") || "/console";
+
+  if (currentPath === "/console" && currentPath !== firstConsolePath) {
+    return <Navigate to={firstConsolePath} replace />;
+  }
+
+  if (!hasConsoleRouteAccess(userInfo, currentPath) && currentPath !== firstConsolePath) {
+    return <Navigate to={firstConsolePath} replace />;
+  }
+
   return (
     <SidebarProvider storageKey="layout-console-sidebar" className="bd-console-layout h-dvh">
       <AppSidebar />

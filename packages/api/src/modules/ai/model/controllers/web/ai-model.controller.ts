@@ -29,10 +29,10 @@ function convertOpenAIMessagesToUIMessages(openaiMessages: any[]): UIMessage[] {
         let contentText = "";
         
         if (typeof msg.content === "string") {
-            // ✅ 已经是字符串，直接使用
+            
             contentText = msg.content;
         } else if (Array.isArray(msg.content)) {
-            // ⚠️ content 是数组，提取所有文本部分并拼接
+            
             // ERNIE 模型不支持数组格式，必须转换为字符串
             contentText = msg.content
                 .filter((item: any) => item.type === "text")
@@ -183,8 +183,7 @@ export class AiModelWebController extends BaseController {
             throw HttpErrorFactory.badRequest("请提供消息内容 (messages array is required)");
         }
 
-        // ✅ 将 OpenAI 格式的消息转换为 UIMessage 格式
-        // 这对于 ERNIE 等模型至关重要，确保 content 是纯字符串而非数组/对象
+        
         const uiMessages = convertOpenAIMessagesToUIMessages(messages);
 
         // 调用聊天完成服务（内部会再次通过 convertToModelMessages 处理）
@@ -193,7 +192,7 @@ export class AiModelWebController extends BaseController {
                 userId: apiKey.userId,
                 modelId: modelId,
                 conversationId: undefined, // 不保存对话记录
-                messages: uiMessages,  // ✅ 使用转换后的 UIMessage 格式
+                messages: uiMessages, 
                 title: undefined,
                 systemPrompt: body.system_prompt || body.systemPrompt,
                 mcpServerIds: body.mcp_server_ids || body.mcpServerIds || [],
