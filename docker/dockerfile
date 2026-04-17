@@ -1,0 +1,49 @@
+FROM node:22.22-alpine3.23 AS build
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=${PNPM_HOME}:${PATH}
+
+RUN apk add --no-cache python3 make g++ ca-certificates \
+	&& corepack enable \
+	&& corepack prepare pnpm@10.20.0 --activate
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ecosystem.config.js ./
+COPY assets ./assets
+COPY docker ./docker
+COPY extensions ./extensions
+COPY packages ./packages
+COPY public ./public
+COPY scripts ./scripts
+COPY skills ./skills
+COPY storage ./storage
+COPY templates ./templates
+
+RUN pnpm install --frozen-lockfile
+
+ENV NODE_ENV=production
+ENV SERVER_PORT=8080
+
+RUN pnpm turbo run build --filter=buildingai-client... --filter=@buildingai/api...
+
+
+FROM node:22.22-alpine3.23 AS runtime
+
+ENV NODE_ENV=production
+ENV SERVER_PORT=8080
+ENV TZ=Asia/Shanghai
+ENV VITE_APP_WEB_API_PREFIX=/api
+ENV VITE_APP_CONSOLE_API_PREFIX=/consoleapi
+
+RUN apk add --no-cache curl tini
+
+WORKDIR /app/packages/api
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+	CMD curl -f http://127.0.0.1:8080/consoleapi/health || exit 1
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/main"]

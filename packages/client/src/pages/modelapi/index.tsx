@@ -43,14 +43,7 @@ const ApiKeysPage = () => {
   };
 
   return (
-    <div className="flex h-full">
-      {/* 边栏 */}
-      <div className="w-64 border-r bg-gray-50 p-4">
-        <h2 className="text-lg font-semibold">API keys</h2>
-      </div>
-
-      {/* 主内容 */}
-      <div className="flex-1 p-6">
+    <div className="h-full p-6">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold">API keys</h1>
           <Button onClick={() => setCreateDialogOpen(true)}>
@@ -113,7 +106,6 @@ const ApiKeysPage = () => {
           apiKeyName={createdApiKey?.name ?? ""}
           apiKeyValue={createdApiKey?.key ?? ""}
         />
-      </div>
     </div>
   );
 };

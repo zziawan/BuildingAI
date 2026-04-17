@@ -1,0 +1,165 @@
+name: unicloud AI platform
+
+services:
+  postgres:
+    image: ccr.ccs.tencentyun.com/buildingai/postgres:17.6
+    container_name: ai-db-postgres
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_DATABASE:aiplatform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-buildingai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - unicloudai-network
+
+  redis:
+    image: ccr.ccs.tencentyun.com/buildingai/redis:8.2.2
+    container_name: unicloud-ai-redis
+    restart: unless-stopped
+    command: ["sh", "-c", "redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass \"$REDIS_PASSWORD\"}"]
+    environment:
+      TZ: Asia/Shanghai
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a $REDIS_PASSWORD} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ai-network
+
+  app-init:
+    build:
+      context: .
+      dockerfile: docker/dockerfile
+      target: build
+    image: platform:build
+    container_name: ai-app-init
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Syncing app files to volume..."
+        cp -a /app/. /data/
+        echo "Done."
+    volumes:
+      - app_data:/data
+    networks:
+      - ai-network
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/dockerfile
+    image: aiplatform:v1.0
+    container_name: ai-app
+    restart: unless-stopped
+    depends_on:
+      app-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Shanghai
+      NODE_ENV: production
+      SERVER_PORT: 8080
+      APP_DOMAIN: ${APP_DOMAIN:-}
+
+      JWT_SECRET: ${JWT_SECRET:-ai}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-30d}
+
+      DB_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_DATABASE: ${DB_DATABASE:-buildingai}
+      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-false}
+      DB_DEV_SYNCHRONIZE: ${DB_DEV_SYNCHRONIZE:-false}
+      DB_LOGGING: ${DB_LOGGING:-false}
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_USERNAME: ${REDIS_USERNAME:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+
+      VITE_APP_WEB_API_PREFIX: ${VITE_APP_WEB_API_PREFIX:-/api}
+      VITE_APP_CONSOLE_API_PREFIX: ${VITE_APP_CONSOLE_API_PREFIX:-/consoleapi}
+      VITE_PRODUCTION_APP_BASE_URL: ${VITE_PRODUCTION_APP_BASE_URL:-}
+
+      LOG_LEVELS: ${LOG_LEVELS:-error,warn,debug,fatal}
+      LOG_TO_FILE: ${LOG_TO_FILE:-true}
+      LOG_WRITE_LEVELS: ${LOG_WRITE_LEVELS:-error,warn,debug,fatal,log}
+      LOG_DATABASE_SCHEMA: ${LOG_DATABASE_SCHEMA:-false}
+      LOG_CLEAN_INTERVAL: ${LOG_CLEAN_INTERVAL:-3}
+
+      CACHE_TTL: ${CACHE_TTL:-86400}
+      CACHE_MAX_ITEMS: ${CACHE_MAX_ITEMS:-1000}
+
+      SERVER_CORS_ENABLED: ${SERVER_CORS_ENABLED:-true}
+      SERVER_CORS_ORIGIN: ${SERVER_CORS_ORIGIN:-*}
+      SERVER_SHOW_DETAILED_ERRORS: ${SERVER_SHOW_DETAILED_ERRORS:-false}
+      SERVER_IS_DEMO_ENV: ${SERVER_IS_DEMO_ENV:-false}
+    ports:
+      - "${APP_EXTERNAL_PORT:-8080}:8080"
+    volumes:
+      - app_data:/app
+      - app_storage:/app/storage
+      - app_logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8080/consoleapi/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - ai-network
+
+networks:
+  ai-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/data/postgres
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/data/redis
+  app_storage:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/data/storage
+  app_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/data/logs
+  app_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/data/app
