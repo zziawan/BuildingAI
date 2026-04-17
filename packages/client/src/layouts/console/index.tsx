@@ -18,13 +18,7 @@ import {
 import AccessMenuIndexPage from "@/pages/console/access/menu";
 import AccessPermissionIndexPage from "@/pages/console/access/permission";
 import AccessRoleIndexPage from "@/pages/console/access/role";
-import AgentConfigIndexPage from "@/pages/console/ai/agent/config";
-import AgentIndexPage from "@/pages/console/ai/agent/list";
-import DatasetsConfigPage from "@/pages/console/ai/datasets/config";
-import DatasetsIndexPage from "@/pages/console/ai/datasets/list";
 import ApiKeyIndexPage from "@/pages/console/ai/api-key";
-import ModelIndexPage from "@/pages/console/ai/model";
-import ModelUsagePage from "@/pages/console/ai/model/usage";
 import AiMcpIndexPage from "@/pages/console/ai/mcp";
 import AiProviderIndexPage from "@/pages/console/ai/provider";
 import AiSecretIndexPage from "@/pages/console/ai/secret";
@@ -35,12 +29,10 @@ import DashboardPage from "@/pages/console/dashboard";
 import DecorateAgentIndexPage from "@/pages/console/decorate/agent";
 import DecorateAppsIndexPage from "@/pages/console/decorate/apps";
 import DecorateLayoutIndexPage from "@/pages/console/decorate/layout";
-import ExtensionIndexPage from "@/pages/console/extension";
 import FinancialAnalysisIndexPage from "@/pages/console/financial/analysis";
 import FinancialBalanceDetailsIndexPage from "@/pages/console/financial/balance-details";
 import NoticeNotificationSettingsPage from "@/pages/console/notice/notification-settings";
 import NoticeSmsPage from "@/pages/console/notice/sms";
-import OperationIndexPage from "@/pages/console/operation";
 import OperationLayout from "@/pages/console/operation/_layouts";
 import CDKManagementPage from "@/pages/console/operation/cdk/management";
 import CDKRecordsPage from "@/pages/console/operation/cdk/records";
@@ -65,27 +57,91 @@ const modules = import.meta.glob<{ default: ComponentType }>(
   { eager: true },
 );
 
+const LEGACY_ROUTE_COMPONENT_MAP: Record<string, ComponentType> = {
+  mcp: AiMcpIndexPage,
+  provider: AiProviderIndexPage,
+  secret: AiSecretIndexPage,
+  "api-key": ApiKeyIndexPage,
+};
+
+function normalizeComponentBasePath(componentPath: string): string {
+  const normalized = componentPath.trim().replace(/\\+/g, "/");
+
+  if (normalized.startsWith("/src/pages/")) {
+    return normalized;
+  }
+  if (normalized.startsWith("/console/")) {
+    return `/src/pages${normalized}`;
+  }
+  if (normalized.startsWith("console/")) {
+    return `/src/pages/${normalized}`;
+  }
+  if (normalized.startsWith("/")) {
+    return `/src/pages${normalized}`;
+  }
+
+  return `/src/pages/${normalized}`;
+}
+
+function resolveMenuComponent(componentPath?: string): ComponentType | undefined {
+  if (!componentPath) return undefined;
+
+  const base = normalizeComponentBasePath(componentPath).replace(/\/+$/, "");
+  const withoutTsx = base.endsWith(".tsx") ? base.slice(0, -4) : base;
+  const withoutIndex = withoutTsx.endsWith("/index") ? withoutTsx.slice(0, -6) : withoutTsx;
+
+  const candidates = [
+    `${withoutIndex}/index.tsx`,
+    `${withoutTsx}.tsx`,
+    base,
+    `${withoutTsx}/index.tsx`,
+  ];
+
+  const uniqueCandidates = [...new Set(candidates)];
+  for (const key of uniqueCandidates) {
+    const componentModule = modules[key];
+    if (componentModule?.default) {
+      return componentModule.default;
+    }
+  }
+
+  return undefined;
+}
+
 /**
  * Convert menu items to react-router RouteObject.
  */
-function generateRoutes(menus: MenuItem[]): RouteObject[] {
-  return menus
-    .filter((menu) => menu.component)
-    .flatMap((menu) => {
-      const module = modules[`/src/pages${menu.component}`];
-      const Component = module?.default;
+function toConsoleRelativePath(path: string): string {
+  const normalized = path.replace(/\\+/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "");
+
+  if (!normalized) return "";
+
+  if (normalized === "console") return "";
+  if (normalized.startsWith("console/")) {
+    return normalized.slice("console/".length);
+  }
+
+  return normalized;
+}
+
+function generateRoutes(menus: MenuItem[], basePath = ""): RouteObject[] {
+  return menus.flatMap((menu) => {
+      const mergedPath = [basePath, menu.path].filter(Boolean).join("/");
+      const routePath = toConsoleRelativePath(mergedPath);
+  const Component = resolveMenuComponent(menu.component);
+  const LegacyComponent = LEGACY_ROUTE_COMPONENT_MAP[routePath];
 
       const routes: RouteObject[] = [];
 
-      if (Component) {
+      if ((Component || LegacyComponent) && routePath) {
         routes.push({
-          path: menu.path,
-          element: <Component />,
+          path: routePath,
+          element: Component ? <Component /> : <LegacyComponent />,
         });
       }
 
       if (menu.children?.length) {
-        routes.push(...generateRoutes(menu.children));
+        routes.push(...generateRoutes(menu.children, mergedPath));
       }
 
       return routes;
@@ -99,19 +155,6 @@ function ConsoleRoutes() {
     const dynamicRoutes = generateRoutes(userInfo?.menus ?? []);
     return [
       { path: "/dashboard", element: <DashboardPage /> },
-      // TODO: 临时静态页面，完成所有页面之后需要删掉
-      { path: "/agent", element: <AgentIndexPage /> },
-      { path: "/agent/config", element: <AgentConfigIndexPage /> },
-      { path: "/datasets", element: <DatasetsIndexPage /> },
-      { path: "/datasets/config", element: <DatasetsConfigPage /> },
-      { path: "/provider", element: <AiProviderIndexPage /> },
-      { path: "/mcp", element: <AiMcpIndexPage /> },
-      { path: "/extension", element: <ExtensionIndexPage /> },
-      { path: "/secret", element: <AiSecretIndexPage /> },
-      { path: "/api-key", element: <ApiKeyIndexPage /> },
-      { path: "/operation", element: <OperationIndexPage /> },
-      { path: "/model", element: <ModelIndexPage /> },
-      { path: "/models/usage/:id", element: <ModelUsagePage /> },
       {
         path: "operation/*",
         element: <OperationLayout />,
