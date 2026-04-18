@@ -5,6 +5,10 @@
     "author": "BuildingAI Teams",
     "private": true,
     "license": "UNLICENSED",
+    "files": [
+        "dist/**/*",
+        "data/**/*"
+    ],
     "main": "dist/main.js",
     "scripts": {
         "dev": "cross-env NODE_ENV=development nodemon -q",
