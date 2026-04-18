@@ -9,16 +9,16 @@ services:
       TZ: Asia/Shanghai
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_DATABASE:aiplatform}
+      POSTGRES_DB: ${DB_DATABASE:-api_platform_pro}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-buildingai}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-api_platform_pro}"]
       interval: 10s
       timeout: 5s
       retries: 10
     networks:
-      - unicloudai-network
+      - ai-network
 
   redis:
     image: ccr.ccs.tencentyun.com/buildingai/redis:8.2.2
@@ -69,38 +69,48 @@ services:
     networks:
       - ai-network
 
-  app-init:
-    build:
-      context: .
-      dockerfile: docker/dockerfile
-      target: build
-    image: platform:build
-    container_name: ai-app-init
-    restart: "no"
-    depends_on:
-      db-init:
-        condition: service_completed_successfully
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo "Syncing app files to volume..."
-        cp -a /app/. /data/
-        echo "Done."
-    volumes:
-      - app_data:/data
-    networks:
-      - ai-network
-
   app:
-    build:
-      context: .
-      dockerfile: docker/dockerfile
-    image: aiplatform:v1.0
+    image: node:22.22-alpine3.23
     container_name: ai-app
-    restart: unless-stopped
+    restart:  on-failure:5
+    working_dir: /app
+    volumes:
+            - app_data:/app
+            - /app/node_modules
+            - /app/packages/cli/node_modules
+            - /app/packages/core/node_modules
+            - /app/packages/client/node_modules
+            - /app/packages/web/@buildingai/designer/node_modules
+            - /app/packages/web/@buildingai/hooks/node_modules
+            - /app/packages/web/@buildingai/http/node_modules
+            - /app/packages/web/@buildingai/i18n-config/node_modules
+            - /app/packages/web/@buildingai/layouts/node_modules
+            - /app/packages/web/@buildingai/nuxt/node_modules
+            - /app/packages/web/@buildingai/service/node_modules
+            - /app/packages/web/@buildingai/stores/node_modules
+            - /app/packages/web/@buildingai/ui/node_modules
+            - /app/packages/web/@buildingai/web-config/node_modules
+            - /app/packages/@buildingai/ai-sdk/node_modules
+            - /app/packages/@buildingai/base/node_modules
+            - /app/packages/@buildingai/cache/node_modules
+            - /app/packages/@buildingai/config/node_modules
+            - /app/packages/@buildingai/constants/node_modules
+            - /app/packages/@buildingai/db/node_modules
+            - /app/packages/@buildingai/decorators/node_modules
+            - /app/packages/@buildingai/dict/node_modules
+            - /app/packages/@buildingai/di/node_modules
+            - /app/packages/@buildingai/dto/node_modules
+            - /app/packages/@buildingai/errors/node_modules
+            - /app/packages/@buildingai/eslint-config/node_modules
+            - /app/packages/@buildingai/extension-sdk/node_modules
+            - /app/packages/@buildingai/logger/node_modules
+            - /app/packages/@buildingai/pipe/node_modules
+            - /app/packages/@buildingai/types/node_modules
+            - /app/packages/@buildingai/typescript-config/node_modules
+            - /app/packages/@buildingai/upgrade/node_modules
+            - /app/packages/@buildingai/utils/node_modules
+            - /app/packages/@buildingai/wechat-sdk/node_modules
     depends_on:
-      app-init:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -159,6 +169,36 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s
+    command: |
+            sh -c '
+            set -e
+            echo "🚀 Starting app container..."
+
+            if [ -n "$NPM_REGISTRY_URL" ]; then
+            echo "🔧 Using custom registry: $NPM_REGISTRY_URL"
+            if command -v npm >/dev/null 2>&1; then
+                npm config set registry "$NPM_REGISTRY_URL"
+            fi
+            if command -v pnpm >/dev/null 2>&1; then
+                pnpm config set registry "$NPM_REGISTRY_URL"
+            fi
+            else
+            echo "⚠️ NPM_REGISTRY_URL not set, using default registry"
+            fi
+
+            if ! command -v pnpm >/dev/null 2>&1; then
+            echo "📦 Installing pnpm..."
+            npm install -g pnpm
+            npm install -g pm2
+
+            if [ -n "$NPM_REGISTRY_URL" ]; then
+                pnpm config set registry "$NPM_REGISTRY_URL"
+            fi
+            fi
+
+            echo "🎯 Starting app..."
+            exec pnpm start --no-daemon
+            '
     networks:
       - ai-network
 
@@ -166,34 +206,35 @@ networks:
   ai-network:
     driver: bridge
 
+
 volumes:
   postgres_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /home/data/postgres
+      device: /root/workspace/data1/web/pgdata
   redis_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /home/data/redis
+      device: /root/workspace/data1/web/redisdata
   app_storage:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /home/data/storage
+      device: /root/workspace/data1/web/storage
   app_logs:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /home/data/logs
-  app_data:
+      device: /root/workspace/data1/web/logs
+  app:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /home/data/app
+      device: /root/workspace/data1/web/app
