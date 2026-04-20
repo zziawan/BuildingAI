@@ -2,17 +2,12 @@ import { BaseController } from "@buildingai/base";
 import { AI_DEFAULT_MODEL } from "@buildingai/constants";
 import { Public } from "@buildingai/decorators/public.decorator";
 import { DictService } from "@buildingai/dict";
-import { WebController } from "@common/decorators/controller.decorator";
+import { OpenApiController, WebController } from "@common/decorators/controller.decorator";
 import { AiModelService } from "@modules/ai/model/services/ai-model.service";
 import { ChatCompletionService } from "@modules/ai/chat/services/ai-chat-completion.service";
 import { Body, Get, Param, Post, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
-import { Playground } from "@buildingai/decorators/playground.decorator";
-import { type UserPlayground } from "@buildingai/db";
 import { ApiKeyService } from "@modules/api-keys/services/api-key.service";
-import { InjectRepository } from "@buildingai/db/@nestjs/typeorm";
-import { User } from "@buildingai/db/entities";
-import { Repository } from "@buildingai/db/typeorm";
 import { HttpErrorFactory } from "@buildingai/errors";
 import type { UIMessage } from "ai";
 import { generateId } from "ai";
@@ -69,10 +64,6 @@ export class AiModelWebController extends BaseController {
     constructor(
         private readonly aiModelService: AiModelService,
         private readonly dictService: DictService,
-        private readonly chatCompletionService: ChatCompletionService,
-        private readonly apiKeyService: ApiKeyService,
-        @InjectRepository(User)
-        private readonly userRepository: Repository<User>,
     ) {
         super();
     }
@@ -102,14 +93,42 @@ export class AiModelWebController extends BaseController {
     }
 
     /**
-     * 调用模型进行对话
-     * @description 通过指定模型ID直接调用模型，支持流式和非流式响应
-     * @route POST /chat
-     * @compatibility Compatible with OpenAI API format
-     * @param body.stream - 是否使用流式响应，默认为true。设置为false时返回JSON格式的完整响应
+     * 获取默认模型
      */
     @Public()
-    @Post()
+    @Get("default/current")
+    async getDefaultModel() {
+        const model_id = await this.dictService.get(AI_DEFAULT_MODEL);
+
+        if (model_id) {
+            const model = await this.aiModelService.findOneById(model_id, {
+                excludeFields: ["apiKey"],
+            });
+            if (model && model.isActive) {
+                return model;
+            }
+        }
+
+        return null;
+    }
+}
+
+@OpenApiController("chat")
+export class AiModelOpenApiController extends BaseController {
+    constructor(
+        private readonly aiModelService: AiModelService,
+        private readonly chatCompletionService: ChatCompletionService,
+        private readonly apiKeyService: ApiKeyService,
+    ) {
+        super();
+    }
+
+    /**
+     * OpenAI 兼容聊天接口
+     * @route POST /v1/chat/completions
+     */
+    @Public()
+    @Post("completions")
     async chatWithModel(
         @Body() body: any,
         @Res() res: Response,
@@ -131,14 +150,12 @@ export class AiModelWebController extends BaseController {
             if (req.aborted || req.socket?.destroyed) abortController.abort();
         }
 
-        // Get modelId from request body (OpenAI compatible)
         const modelId = body.model;
 
         if (!modelId) {
             throw HttpErrorFactory.badRequest("请提供模型ID (model parameter is required)");
         }
 
-        // Extract and validate API Key
         const authorization = req.headers.authorization;
         const apiKeyToken =
             typeof authorization === "string" && authorization.startsWith("Bearer ")
@@ -156,7 +173,6 @@ export class AiModelWebController extends BaseController {
 
         await this.apiKeyService.updateLastUsed(apiKey.id);
 
-        // 验证模型是否存在且可用
         const model = await this.aiModelService.findOne({
             where: { id: modelId, isActive: true },
             relations: ["provider"],
@@ -170,7 +186,6 @@ export class AiModelWebController extends BaseController {
             throw HttpErrorFactory.badRequest(`模型提供商 ${model.provider?.name} 未激活`);
         }
 
-        // 构建消息 (OpenAI compatible format)
         const messages = body.messages || [];
         if (!messages.length && body.prompt) {
             messages.push({
@@ -183,16 +198,14 @@ export class AiModelWebController extends BaseController {
             throw HttpErrorFactory.badRequest("请提供消息内容 (messages array is required)");
         }
 
-        
         const uiMessages = convertOpenAIMessagesToUIMessages(messages);
 
-        // 调用聊天完成服务（内部会再次通过 convertToModelMessages 处理）
         await this.chatCompletionService.streamChat(
             {
                 userId: apiKey.userId,
                 modelId: modelId,
-                conversationId: undefined, // 不保存对话记录
-                messages: uiMessages, 
+                conversationId: undefined,
+                messages: uiMessages,
                 title: undefined,
                 systemPrompt: body.system_prompt || body.systemPrompt,
                 mcpServerIds: body.mcp_server_ids || body.mcpServerIds || [],
@@ -203,30 +216,10 @@ export class AiModelWebController extends BaseController {
                 regenerateParentId: undefined,
                 isToolApprovalFlow: false,
                 feature: body.feature,
-                saveConversation: false, // 不保存对话
-                stream: body.stream !== false, // Default to streaming, but allow override
+                saveConversation: false,
+                stream: body.stream !== false,
             },
             res,
         );
-    }
-
-    /**
-     * 获取默认模型
-     */
-    @Public()
-    @Get("default/current")
-    async getDefaultModel() {
-        const model_id = await this.dictService.get(AI_DEFAULT_MODEL);
-
-        if (model_id) {
-            const model = await this.aiModelService.findOneById(model_id, {
-                excludeFields: ["apiKey"],
-            });
-            if (model && model.isActive) {
-                return model;
-            }
-        }
-
-        return null;
     }
 }

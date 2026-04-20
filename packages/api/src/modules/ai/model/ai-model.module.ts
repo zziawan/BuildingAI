@@ -5,7 +5,7 @@ import { Module } from "@nestjs/common";
 import { AiChatModule } from "../chat/ai-chat.module";
 import { AiProviderService } from "../provider/services/ai-provider.service";
 import { AiModelConsoleController } from "./controllers/console/ai-model.controller";
-import { AiModelWebController } from "./controllers/web/ai-model.controller";
+import { AiModelOpenApiController, AiModelWebController } from "./controllers/web/ai-model.controller";
 import { AiModelService } from "./services/ai-model.service";
 import { ApiKeyService } from "@modules/api-keys/services/api-key.service";
 
@@ -17,7 +17,7 @@ import { ApiKeyService } from "@modules/api-keys/services/api-key.service";
         AiChatModule,
         TypeOrmModule.forFeature([AiModel, Dict, AiProvider, Secret, User, ApiKey]),
     ],
-    controllers: [AiModelConsoleController, AiModelWebController],
+    controllers: [AiModelConsoleController, AiModelWebController, AiModelOpenApiController],
     providers: [AiModelService, AiProviderService, ApiKeyService],
     exports: [AiModelService, AiProviderService],
 })
