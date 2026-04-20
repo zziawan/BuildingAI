@@ -50,10 +50,40 @@ const ModelUsagePage = () => {
     );
   };
 
-  const handleCopy = (text: string, param: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedParam(param);
-    setTimeout(() => setCopiedParam(null), 2000);
+  const copyByExecCommand = (text: string) => {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return copied;
+  };
+
+  const handleCopy = async (text: string, param: string) => {
+    let copied = false;
+
+    if (typeof navigator !== "undefined" && navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+    }
+
+    if (!copied) {
+      copied = copyByExecCommand(text);
+    }
+
+    if (copied) {
+      setCopiedParam(param);
+      setTimeout(() => setCopiedParam(null), 2000);
+    }
   };
 
   if (isLoading) {
@@ -177,6 +207,9 @@ async function callModel() {
 
 callModel().catch(console.error);`
   };
+
+  const activeCodeExample = codeExamples[activeTab];
+  const activeCodeExampleCopyKey = `example-${activeTab}`;
 
   return (
     <PageContainer>
@@ -330,11 +363,21 @@ callModel().catch(console.error);`
           </div>
           <div className="p-6">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "curl" | "python" | "nodejs")}>
-              <TabsList className="w-fit">
-                <TabsTrigger value="curl">cURL</TabsTrigger>
-                <TabsTrigger value="python">Python</TabsTrigger>
-                <TabsTrigger value="nodejs">Node.js</TabsTrigger>
-              </TabsList>
+              <div className="flex items-center justify-between gap-3">
+                <TabsList className="w-fit">
+                  <TabsTrigger value="curl">cURL</TabsTrigger>
+                  <TabsTrigger value="python">Python</TabsTrigger>
+                  <TabsTrigger value="nodejs">Node.js</TabsTrigger>
+                </TabsList>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCopy(activeCodeExample, activeCodeExampleCopyKey)}
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  {copiedParam === activeCodeExampleCopyKey ? "已复制" : "复制示例代码"}
+                </Button>
+              </div>
               <div className="mt-4">
                 <TabsContent value="curl" className="mt-0">
                   <div className="bg-muted p-4 rounded-md overflow-x-auto">
