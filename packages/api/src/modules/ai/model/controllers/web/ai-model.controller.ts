@@ -11,6 +11,75 @@ import { ApiKeyService } from "@modules/api-keys/services/api-key.service";
 import { HttpErrorFactory } from "@buildingai/errors";
 import type { UIMessage } from "ai";
 import { generateId } from "ai";
+import { TextDecoder } from "node:util";
+
+const GB18030_DECODER = new TextDecoder("gb18030");
+
+function countChineseChars(text: string): number {
+    return (text.match(/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/g) || []).length;
+}
+
+function countSuspiciousChars(text: string): number {
+    return (
+        (text.match(/[ÃÂÐÑØãäåæçèéêëìíîïðñòóôõöùúûüýþÿ�]/g) || []).length +
+        (text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g) || []).length
+    );
+}
+
+function looksLikeMojibake(text: string): boolean {
+    if (!text) return false;
+    return /[ÃÂÐÑØãäåæçèéêëìíîïðñòóôõöùúûüýþÿ�]/.test(text);
+}
+
+function scoreDecodedText(text: string): number {
+    return countChineseChars(text) * 3 - countSuspiciousChars(text) * 2;
+}
+
+function tryDecodeLatin1AsUtf8(text: string): string {
+    return Buffer.from(text, "latin1").toString("utf8");
+}
+
+function tryDecodeLatin1AsGb18030(text: string): string {
+    return GB18030_DECODER.decode(Buffer.from(text, "latin1"));
+}
+
+function normalizeUtf8Text(text: string): string {
+    if (!looksLikeMojibake(text)) {
+        return text;
+    }
+
+    const candidates = [text, tryDecodeLatin1AsUtf8(text), tryDecodeLatin1AsGb18030(text)];
+    let best = text;
+    let bestScore = scoreDecodedText(text);
+
+    for (const candidate of candidates) {
+        const score = scoreDecodedText(candidate);
+        if (score > bestScore) {
+            best = candidate;
+            bestScore = score;
+        }
+    }
+
+    return best;
+}
+
+function normalizePayloadStrings<T>(value: T): T {
+    if (typeof value === "string") {
+        return normalizeUtf8Text(value) as T;
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((item) => normalizePayloadStrings(item)) as T;
+    }
+
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.entries(value).map(([key, item]) => [key, normalizePayloadStrings(item)]),
+        ) as T;
+    }
+
+    return value;
+}
 
 /**
  * 将 OpenAI 格式的消息转换为 UIMessage 格式
@@ -134,6 +203,7 @@ export class AiModelOpenApiController extends BaseController {
         @Res() res: Response,
         @Req() req: Request,
     ) {
+        const normalizedBody = normalizePayloadStrings(body);
         const abortController = new AbortController();
         const abortSignal =
             (req as any).signal instanceof AbortSignal
@@ -150,7 +220,7 @@ export class AiModelOpenApiController extends BaseController {
             if (req.aborted || req.socket?.destroyed) abortController.abort();
         }
 
-        const modelId = body.model;
+        const modelId = normalizedBody.model;
 
         if (!modelId) {
             throw HttpErrorFactory.badRequest("请提供模型ID (model parameter is required)");
@@ -186,11 +256,11 @@ export class AiModelOpenApiController extends BaseController {
             throw HttpErrorFactory.badRequest(`模型提供商 ${model.provider?.name} 未激活`);
         }
 
-        const messages = body.messages || [];
-        if (!messages.length && body.prompt) {
+        const messages = normalizedBody.messages || [];
+        if (!messages.length && normalizedBody.prompt) {
             messages.push({
                 role: "user",
-                content: body.prompt,
+                content: normalizedBody.prompt,
             });
         }
 
@@ -207,17 +277,17 @@ export class AiModelOpenApiController extends BaseController {
                 conversationId: undefined,
                 messages: uiMessages,
                 title: undefined,
-                systemPrompt: body.system_prompt || body.systemPrompt,
-                mcpServerIds: body.mcp_server_ids || body.mcpServerIds || [],
+                systemPrompt: normalizedBody.system_prompt || normalizedBody.systemPrompt,
+                mcpServerIds: normalizedBody.mcp_server_ids || normalizedBody.mcpServerIds || [],
                 abortSignal,
                 isRegenerate: false,
                 regenerateMessageId: undefined,
                 parentId: undefined,
                 regenerateParentId: undefined,
                 isToolApprovalFlow: false,
-                feature: body.feature,
+                feature: normalizedBody.feature,
                 saveConversation: false,
-                stream: body.stream !== false,
+                stream: normalizedBody.stream !== false,
             },
             res,
         );

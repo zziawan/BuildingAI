@@ -88,7 +88,7 @@ const ModelUsagePage = () => {
   // 生成代码示例
   const codeExamples = {
     curl: `curl -X POST "${endpointUrl}" \\
-  -H "Content-Type: application/json" \\
+  -H "Content-Type: application/json; charset=utf-8" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -d '{
     "model": "${model.id}",
@@ -108,7 +108,7 @@ base_url = "${apiBaseUrl}"
 url = f"{base_url}/chat/completions"
 
 headers = {
-    "Content-Type": "application/json",
+  "Content-Type": "application/json; charset=utf-8",
     "Authorization": "Bearer YOUR_API_KEY"
 }
 
@@ -136,7 +136,7 @@ const baseURL = '${apiBaseUrl}';
   const url = baseURL + '/chat/completions';
 
 const headers = {
-  'Content-Type': 'application/json',
+  'Content-Type': 'application/json; charset=utf-8',
   'Authorization': 'Bearer YOUR_API_KEY'
 };
 
