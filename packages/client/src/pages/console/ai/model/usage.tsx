@@ -82,7 +82,10 @@ const ModelUsagePage = () => {
     );
   }
 
-  const apiBaseUrl = `${getApiBaseUrl()}/v1`;
+  const configuredApiBaseUrl = getApiBaseUrl();
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const resolvedApiOrigin = (configuredApiBaseUrl || browserOrigin).replace(/\/+$/, "");
+  const apiBaseUrl = `${resolvedApiOrigin}/v1`;
   const endpointUrl = `${apiBaseUrl}/chat/completions`;
   
   // 生成代码示例
