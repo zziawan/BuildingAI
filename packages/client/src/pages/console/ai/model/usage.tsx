@@ -3,14 +3,6 @@ import { useAuthStore } from "@buildingai/stores";
 import { BooleanNumber } from "@buildingai/constants/shared/status-codes.constant";
 import { Badge } from "@buildingai/ui/components/ui/badge";
 import { Button } from "@buildingai/ui/components/ui/button";
-import { Input } from "@buildingai/ui/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@buildingai/ui/components/ui/select";
 import {
   Table,
   TableBody,
@@ -20,43 +12,13 @@ import {
   TableRow,
 } from "@buildingai/ui/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@buildingai/ui/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@buildingai/ui/components/ui/tooltip";
-import {
-  Activity,
-  ArrowLeft,
-  Braces,
-  Brain,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  FileText,
-  ScanEye,
-  Video,
-  Waves,
-  Workflow,
-  Wrench,
-} from "lucide-react";
+import { ArrowLeft, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 import { PageContainer } from "@/layouts/console/_components/page-container";
 import { ProviderAvatar } from "@/components/provider-avatar";
-import { MODEL_FEATURES, MODEL_FEATURE_DESCRIPTIONS } from "@buildingai/ai-sdk/interfaces";
 import { getApiBaseUrl } from "@/utils/api";
-
-type ModelTypeForQuery = "llm" | "text-embedding" | "rerank" | "speech2text" | "tts";
-
-const FEATURE_ICON_MAP: Record<string, React.ElementType> = {
-  [MODEL_FEATURES.VISION]: ScanEye,
-  [MODEL_FEATURES.AUDIO]: Activity,
-  [MODEL_FEATURES.DOCUMENT]: FileText,
-  [MODEL_FEATURES.VIDEO]: Video,
-  [MODEL_FEATURES.AGENT_THOUGHT]: Brain,
-  [MODEL_FEATURES.TOOL_CALL]: Wrench,
-  [MODEL_FEATURES.MULTI_TOOL_CALL]: Workflow,
-  [MODEL_FEATURES.STREAM_TOOL_CALL]: Waves,
-  [MODEL_FEATURES.STRUCTURED_OUTPUT]: Braces,
-};
 
 /**
  * 模型使用说明页面
@@ -120,12 +82,12 @@ const ModelUsagePage = () => {
     );
   }
 
-  // 生成平台API基础URL (OpenAI compatible format)
-  const baseUrl = `${getApiBaseUrl()}/api/ai-models/chat`;
+  const apiBaseUrl = `${getApiBaseUrl()}/v1`;
+  const endpointUrl = `${apiBaseUrl}/chat/completions`;
   
   // 生成代码示例
   const codeExamples = {
-    curl: `curl -X POST "${baseUrl}" \\
+    curl: `curl -X POST "${endpointUrl}" \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -d '{
@@ -142,7 +104,8 @@ const ModelUsagePage = () => {
     python: `import requests
 import json
 
-url = "${baseUrl}"
+base_url = "${apiBaseUrl}"
+url = f"{base_url}/chat/completions"
 
 headers = {
     "Content-Type": "application/json",
@@ -160,16 +123,17 @@ payload = {
     "stream": True
 }
 
-response = requests.post(url, headers=headers, json=payload)
+response = requests.post(url, headers=headers, json=payload, stream=True)
+response.raise_for_status()
 
-# 处理流式响应
 for line in response.iter_lines():
     if line:
-        print(line.decode('utf-8'))`,
+        print(line.decode("utf-8"))`,
 
     nodejs: `const fetch = require('node-fetch');
 
-const url = '${baseUrl}';
+const baseURL = '${apiBaseUrl}';
+  const url = baseURL + '/chat/completions';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -190,9 +154,13 @@ const payload = {
 async function callModel() {
   const response = await fetch(url, {
     method: 'POST',
-    headers: headers,
+    headers,
     body: JSON.stringify(payload)
   });
+
+  if (!response.ok) {
+    throw new Error('Request failed: ' + response.status + ' ' + response.statusText);
+  }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -204,7 +172,7 @@ async function callModel() {
   }
 }
 
-callModel();`
+callModel().catch(console.error);`
   };
 
   return (
@@ -250,7 +218,7 @@ callModel();`
           <div className="p-6 border-b">
             <h2 className="text-xl font-semibold">模型调用参数说明</h2>
             <p className="text-sm text-muted-foreground mt-2">
-              以下是调用该模型所需的参数信息。请注意，baseurl为平台提供的模型调用接口，需要对模型调用进行用户认证、计量计费，具备并发安全高性能特性。
+              以下参数基于 OpenAI 兼容接口 `POST /v1/chat/completions`。平台会对模型调用进行用户认证、计量计费，并统一处理并发与安全控制。
             </p>
           </div>
           <div className="p-6">
@@ -264,16 +232,30 @@ callModel();`
               </TableHeader>
               <TableBody>
                 <TableRow>
-                  <TableCell className="font-medium">baseurl</TableCell>
-                  <TableCell className="font-mono text-sm break-all">{baseUrl}</TableCell>
+                  <TableCell className="font-medium">baseURL</TableCell>
+                  <TableCell className="font-mono text-sm break-all">{apiBaseUrl}</TableCell>
                   <TableCell>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleCopy(baseUrl, "baseurl")}
+                      onClick={() => handleCopy(apiBaseUrl, "baseURL")}
                     >
                       <Copy className="w-4 h-4 mr-2" />
-                      {copiedParam === "baseurl" ? "已复制" : "复制"}
+                      {copiedParam === "baseURL" ? "已复制" : "复制"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">endpoint</TableCell>
+                  <TableCell className="font-mono text-sm break-all">{endpointUrl}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCopy(endpointUrl, "endpoint")}
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      {copiedParam === "endpoint" ? "已复制" : "复制"}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -292,11 +274,11 @@ callModel();`
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell className="font-medium">usekey</TableCell>
+                  <TableCell className="font-medium">Authorization</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">
-                        API Key（请前往 API Keys 页面获取）
+                      <span className="text-muted-foreground break-all">
+                        `Bearer YOUR_API_KEY`（请前往 API Keys 页面获取）
                       </span>
                       <Button
                         variant="link"
@@ -310,6 +292,24 @@ callModel();`
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground">无需复制</span>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">messages</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    OpenAI 标准消息数组，至少包含一条消息，例如 `[{'{'} role: "user", content: "你好" {'}'}]`
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-muted-foreground">请求体参数</span>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">stream</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    可选，默认 `true`；设置为 `false` 时返回非流式完整响应
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-muted-foreground">请求体参数</span>
                   </TableCell>
                 </TableRow>
               </TableBody>
