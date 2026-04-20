@@ -123,6 +123,33 @@ function convertOpenAIMessagesToUIMessages(openaiMessages: any[]): UIMessage[] {
     });
 }
 
+function extractAssistantTextFromUIMessage(message: any): string {
+    if (!message?.parts || !Array.isArray(message.parts)) {
+        return "";
+    }
+
+    return message.parts
+        .filter((part: any) => part?.type === "text" && typeof part?.text === "string")
+        .map((part: any) => part.text)
+        .join("");
+}
+
+function toOpenAIUsage(usage: any) {
+    if (!usage || typeof usage !== "object") {
+        return undefined;
+    }
+
+    const promptTokens = Number(usage.inputTokens ?? usage.prompt_tokens ?? 0) || 0;
+    const completionTokens = Number(usage.outputTokens ?? usage.completion_tokens ?? 0) || 0;
+    const totalTokens = Number(usage.totalTokens ?? promptTokens + completionTokens) || 0;
+
+    return {
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
+    };
+}
+
 /**
  * AI模型信息控制器（前台）
  *
@@ -264,32 +291,215 @@ export class AiModelOpenApiController extends BaseController {
             });
         }
 
+        if (!messages.length && typeof normalizedBody.input === "string") {
+            messages.push({
+                role: "user",
+                content: normalizedBody.input,
+            });
+        }
+
         if (!messages.length) {
             throw HttpErrorFactory.badRequest("请提供消息内容 (messages array is required)");
         }
 
         const uiMessages = convertOpenAIMessagesToUIMessages(messages);
+        const stream = normalizedBody.stream !== false;
+        const completionId = `chatcmpl-${generateId()}`;
+        const created = Math.floor(Date.now() / 1000);
 
-        await this.chatCompletionService.streamChat(
-            {
-                userId: apiKey.userId,
-                modelId: modelId,
-                conversationId: undefined,
-                messages: uiMessages,
-                title: undefined,
-                systemPrompt: normalizedBody.system_prompt || normalizedBody.systemPrompt,
-                mcpServerIds: normalizedBody.mcp_server_ids || normalizedBody.mcpServerIds || [],
-                abortSignal,
-                isRegenerate: false,
-                regenerateMessageId: undefined,
-                parentId: undefined,
-                regenerateParentId: undefined,
-                isToolApprovalFlow: false,
-                feature: normalizedBody.feature,
-                saveConversation: false,
-                stream: normalizedBody.stream !== false,
+        const chatParams = {
+            userId: apiKey.userId,
+            modelId: modelId,
+            conversationId: undefined,
+            messages: uiMessages,
+            title: undefined,
+            systemPrompt: normalizedBody.system_prompt || normalizedBody.systemPrompt,
+            mcpServerIds: normalizedBody.mcp_server_ids || normalizedBody.mcpServerIds || [],
+            abortSignal,
+            isRegenerate: false,
+            regenerateMessageId: undefined,
+            parentId: undefined,
+            regenerateParentId: undefined,
+            isToolApprovalFlow: false,
+            feature: normalizedBody.feature,
+            saveConversation: false,
+            stream,
+        };
+
+        if (!stream) {
+            const responseChunks: string[] = [];
+            let mockWritableEnded = false;
+
+            const mockRes = {
+                get writableEnded() {
+                    return mockWritableEnded;
+                },
+                setHeader: () => mockRes,
+                writeHead: () => mockRes,
+                write: (chunk: Buffer | string) => {
+                    responseChunks.push(typeof chunk === "string" ? chunk : chunk.toString());
+                    return true;
+                },
+                end: (chunk?: Buffer | string) => {
+                    if (chunk) {
+                        responseChunks.push(typeof chunk === "string" ? chunk : chunk.toString());
+                    }
+                    mockWritableEnded = true;
+                },
+                on: () => mockRes,
+                once: () => mockRes,
+                emit: () => true,
+                flushHeaders: () => {},
+            } as unknown as Response;
+
+            await this.chatCompletionService.streamChat(chatParams, mockRes);
+
+            const raw = responseChunks.join("");
+            let parsed: any;
+            try {
+                parsed = raw ? JSON.parse(raw) : undefined;
+            } catch {
+                parsed = undefined;
+            }
+
+            const assistantText = extractAssistantTextFromUIMessage(parsed?.message);
+            const usage = toOpenAIUsage(parsed?.message?.usage);
+
+            return res.status(200).json({
+                id: completionId,
+                object: "chat.completion",
+                created,
+                model: modelId,
+                choices: [
+                    {
+                        index: 0,
+                        message: {
+                            role: "assistant",
+                            content: assistantText,
+                        },
+                        finish_reason: "stop",
+                    },
+                ],
+                ...(usage ? { usage } : {}),
+            });
+        }
+
+        res.status(200);
+        res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+
+        let roleSent = false;
+        let doneSent = false;
+        let lineBuffer = "";
+
+        const writeChunk = (delta: Record<string, unknown>, finishReason: string | null = null) => {
+            if (res.writableEnded) {
+                return;
+            }
+
+            res.write(
+                `data: ${JSON.stringify({
+                    id: completionId,
+                    object: "chat.completion.chunk",
+                    created,
+                    model: modelId,
+                    choices: [
+                        {
+                            index: 0,
+                            delta,
+                            finish_reason: finishReason,
+                        },
+                    ],
+                })}\n\n`,
+            );
+        };
+
+        const flushDone = () => {
+            if (doneSent || res.writableEnded) {
+                return;
+            }
+
+            if (!roleSent) {
+                writeChunk({ role: "assistant" });
+                roleSent = true;
+            }
+
+            writeChunk({}, "stop");
+            res.write("data: [DONE]\n\n");
+            doneSent = true;
+            res.end();
+        };
+
+        const processSsePayload = (payload: string) => {
+            if (!payload || payload === "[DONE]") {
+                return;
+            }
+
+            try {
+                const data = JSON.parse(payload);
+                if (data?.type === "text-delta" && typeof data?.delta === "string") {
+                    if (!roleSent) {
+                        writeChunk({ role: "assistant" });
+                        roleSent = true;
+                    }
+
+                    if (data.delta.length > 0) {
+                        writeChunk({ content: data.delta });
+                    }
+                }
+            } catch {
+                // ignore non-JSON payloads
+            }
+        };
+
+        const consumeInternalChunk = (chunk: Buffer | string) => {
+            lineBuffer += typeof chunk === "string" ? chunk : chunk.toString();
+
+            let newlineIndex = lineBuffer.indexOf("\n");
+            while (newlineIndex >= 0) {
+                const line = lineBuffer.slice(0, newlineIndex).replace(/\r$/, "");
+                lineBuffer = lineBuffer.slice(newlineIndex + 1);
+
+                if (line.startsWith("data: ")) {
+                    processSsePayload(line.slice(6));
+                }
+
+                newlineIndex = lineBuffer.indexOf("\n");
+            }
+        };
+
+        const mockRes = {
+            get writableEnded() {
+                return doneSent;
             },
-            res,
-        );
+            setHeader: () => mockRes,
+            writeHead: () => mockRes,
+            write: (chunk: Buffer | string) => {
+                consumeInternalChunk(chunk);
+                return !res.writableEnded;
+            },
+            end: (chunk?: Buffer | string) => {
+                if (chunk) {
+                    consumeInternalChunk(chunk);
+                }
+
+                if (lineBuffer.trim().startsWith("data: ")) {
+                    processSsePayload(lineBuffer.trim().slice(6));
+                }
+                lineBuffer = "";
+                flushDone();
+            },
+            on: () => mockRes,
+            once: () => mockRes,
+            emit: () => true,
+            flushHeaders: () => {},
+        } as unknown as Response;
+
+        await this.chatCompletionService.streamChat(chatParams, mockRes);
+
+        if (!doneSent) {
+            flushDone();
+        }
     }
 }
