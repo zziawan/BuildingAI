@@ -109,7 +109,7 @@ export class AiModelWebController extends BaseController {
      * @param body.stream - 是否使用流式响应，默认为true。设置为false时返回JSON格式的完整响应
      */
     @Public()
-    @Post("chat")
+    @Post()
     async chatWithModel(
         @Body() body: any,
         @Res() res: Response,
