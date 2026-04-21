@@ -43,8 +43,8 @@ export class ExtensionGuard implements CanActivate {
 
         // 允许访问主应用的 API 路由
         if (
-            request.path.startsWith(process.env.VITE_APP_CONSOLE_API_PREFIX || "/console") ||
-            request.path.startsWith(process.env.VITE_APP_WEB_API_PREFIX || "/web")
+            request.path.startsWith(process.env.VITE_APP_CONSOLE_API_PREFIX || "/consoleapi") ||
+            request.path.startsWith(process.env.VITE_APP_WEB_API_PREFIX || "/api")
         ) {
             return true;
         }
