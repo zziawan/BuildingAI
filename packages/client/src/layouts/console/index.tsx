@@ -6,48 +6,7 @@ import type { MenuItem } from "@buildingai/web-types";
 import type { ComponentType } from "react";
 import { useMemo } from "react";
 import type { RouteObject } from "react-router-dom";
-import { Navigate, useLocation, useRoutes } from "react-router-dom";
-
-import {
-  WEB_HOME_PATH,
-  getFirstConsoleMenuPath,
-  hasConsoleAccess,
-  hasConsoleRouteAccess,
-} from "@/utils/permission";
-
-import AccessMenuIndexPage from "@/pages/console/access/menu";
-import AccessPermissionIndexPage from "@/pages/console/access/permission";
-import AccessRoleIndexPage from "@/pages/console/access/role";
-import ApiKeyIndexPage from "@/pages/console/ai/api-key";
-import AiMcpIndexPage from "@/pages/console/ai/mcp";
-import AiProviderIndexPage from "@/pages/console/ai/provider";
-import AiSecretIndexPage from "@/pages/console/ai/secret";
-import ChannelWechatOaIndexPage from "@/pages/console/channel/wechat-oa";
-import ChatConfigIndexPage from "@/pages/console/chat/config";
-import ChatRecordIndexPage from "@/pages/console/chat/record";
-import DashboardPage from "@/pages/console/dashboard";
-import DecorateAgentIndexPage from "@/pages/console/decorate/agent";
-import DecorateAppsIndexPage from "@/pages/console/decorate/apps";
-import DecorateLayoutIndexPage from "@/pages/console/decorate/layout";
-import FinancialAnalysisIndexPage from "@/pages/console/financial/analysis";
-import FinancialBalanceDetailsIndexPage from "@/pages/console/financial/balance-details";
-import NoticeNotificationSettingsPage from "@/pages/console/notice/notification-settings";
-import NoticeSmsPage from "@/pages/console/notice/sms";
-import OperationLayout from "@/pages/console/operation/_layouts";
-import CDKManagementPage from "@/pages/console/operation/cdk/management";
-import CDKRecordsPage from "@/pages/console/operation/cdk/records";
-import CDKSettingsPage from "@/pages/console/operation/cdk/settings";
-import MembershipLevelIndexPage from "@/pages/console/operation/membership/level";
-import MembershipPlanIndexPage from "@/pages/console/operation/membership/plan";
-import UserRechargeIndexPage from "@/pages/console/operation/recharge";
-import OrderMembershipIndexPage from "@/pages/console/order/membership";
-import OrderRechargeIndexPage from "@/pages/console/order/recharge";
-import SystemAgreementIndexPage from "@/pages/console/system/agreement";
-import SystemLoginConfigIndexPage from "@/pages/console/system/login-config";
-import SystemPayConfigIndexPage from "@/pages/console/system/pay-config";
-import SystemStorageConfigIndexPage from "@/pages/console/system/storage-config";
-import SystemWebsiteConfigIndexPage from "@/pages/console/system/website-config";
-import UserListIndexPage from "@/pages/console/user/list";
+import { useRoutes } from "react-router-dom";
 
 import AppNavbar from "./_components/app-navbar";
 import { AppSidebar } from "./_components/app-sidebar";
@@ -57,95 +16,138 @@ const modules = import.meta.glob<{ default: ComponentType }>(
   { eager: true },
 );
 
-const LEGACY_ROUTE_COMPONENT_MAP: Record<string, ComponentType> = {
-  mcp: AiMcpIndexPage,
-  provider: AiProviderIndexPage,
-  secret: AiSecretIndexPage,
-  "api-key": ApiKeyIndexPage,
+/**
+ * Hardcoded map from legacy DB component paths (pre-dynamic-router) to the
+ * canonical `/src/pages/...` glob key.  Add entries here whenever a page is
+ * moved / renamed so the frontend stays resilient against stale DB values.
+ */
+const LEGACY_COMPONENT_MAP: Record<string, string> = {
+  // ── Dashboard ──────────────────────────────────────────────────────────────
+  "/console/dashboard": "/src/pages/console/dashboard/index.tsx",
+
+  // ── AI / Agent ─────────────────────────────────────────────────────────────
+  "/console/ai/agent/list": "/src/pages/console/ai/agent/list/index.tsx",
+  "/console/ai/agent/config": "/src/pages/console/ai/agent/config/index.tsx",
+
+  // ── AI / Datasets ──────────────────────────────────────────────────────────
+  "/console/ai/datasets/list": "/src/pages/console/ai/datasets/list/index.tsx",
+  "/console/ai/datasets/config": "/src/pages/console/ai/datasets/config/index.tsx",
+
+  // ── AI misc ────────────────────────────────────────────────────────────────
+  "/console/ai/model": "/src/pages/console/ai/model/index.tsx",
+  "/console/extension": "/src/pages/console/extension/index.tsx",
+
+  // ── Operation ──────────────────────────────────────────────────────────────
+  "/console/operation/index": "/src/pages/console/operation/index.tsx",
+  "/console/operation": "/src/pages/console/operation/index.tsx",
+
+  // ── Decorate ───────────────────────────────────────────────────────────────
+  "/console/decorate/layout/index": "/src/pages/console/decorate/layout/index.tsx",
+  "/console/decorate/apps/list": "/src/pages/console/decorate/apps/index.tsx",
+  "/console/decorate/agent/index": "/src/pages/console/decorate/agent/index.tsx",
+
+  // ── Chat ───────────────────────────────────────────────────────────────────
+  "/console/ai/chat/list": "/src/pages/console/chat/record/index.tsx",
+  "/console/ai/chat/setting": "/src/pages/console/chat/config/index.tsx",
+
+  // ── User ───────────────────────────────────────────────────────────────────
+  "/console/user/list": "/src/pages/console/user/list/index.tsx",
+
+  // ── Order ──────────────────────────────────────────────────────────────────
+  "/console/order/order-membership": "/src/pages/console/order/membership/index.tsx",
+  "/console/order/order-recharge": "/src/pages/console/order/recharge/index.tsx",
+
+  // ── Notice ─────────────────────────────────────────────────────────────────
+  "/console/notice/sms/index": "/src/pages/console/notice/sms/index.tsx",
+  "/console/notice/notification-settings/index":
+    "/src/pages/console/notice/notification-settings/index.tsx",
+
+  // ── Channel ────────────────────────────────────────────────────────────────
+  "/console/channel/wechatoa/index": "/src/pages/console/channel/wechat-oa/index.tsx",
+
+  // ── Financial ──────────────────────────────────────────────────────────────
+  "/console/financial/financial-center": "/src/pages/console/financial/analysis/index.tsx",
+  "/console/financial/account-balance":
+    "/src/pages/console/financial/balance-details/index.tsx",
+
+  // ── Access / Permission ────────────────────────────────────────────────────
+  "/console/permission/list": "/src/pages/console/access/permission/index.tsx",
+  "/console/role/list": "/src/pages/console/access/role/index.tsx",
+  "/console/menu/list": "/src/pages/console/access/menu/index.tsx",
+
+  // ── System Settings ────────────────────────────────────────────────────────
+  "/console/system-setting/login-config/index":
+    "/src/pages/console/system/login-config/index.tsx",
+  "/console/system-setting/agreement/index":
+    "/src/pages/console/system/agreement/index.tsx",
+  "/console/system-setting/website/index":
+    "/src/pages/console/system/website-config/index.tsx",
+  "/console/system-setting/pay-config/index":
+    "/src/pages/console/system/pay-config/index.tsx",
+  "/console/system-setting/storage-config/index":
+    "/src/pages/console/system/storage-config/index.tsx",
 };
 
-function normalizeComponentBasePath(componentPath: string): string {
-  const normalized = componentPath.trim().replace(/\\+/g, "/");
-
-  if (normalized.startsWith("/src/pages/")) {
-    return normalized;
-  }
-  if (normalized.startsWith("/console/")) {
-    return `/src/pages${normalized}`;
-  }
-  if (normalized.startsWith("console/")) {
-    return `/src/pages/${normalized}`;
-  }
-  if (normalized.startsWith("/")) {
-    return `/src/pages${normalized}`;
-  }
-
-  return `/src/pages/${normalized}`;
-}
-
-function resolveMenuComponent(componentPath?: string): ComponentType | undefined {
-  if (!componentPath) return undefined;
-
-  const base = normalizeComponentBasePath(componentPath).replace(/\/+$/, "");
-  const withoutTsx = base.endsWith(".tsx") ? base.slice(0, -4) : base;
-  const withoutIndex = withoutTsx.endsWith("/index") ? withoutTsx.slice(0, -6) : withoutTsx;
+/**
+ * Resolve a menu component string to the actual module key used by import.meta.glob.
+ * Resolution order:
+ *  1. Legacy map (covers renamed/moved paths stored in the DB before the dynamic router migration)
+ *  2. Already a correct /src/pages/… path
+ *  3. Short /console/… path → add /src/pages prefix and try index.tsx / .tsx
+ */
+function resolveModule(component: string) {
+  // 1. Legacy map lookup (handles structurally different old paths)
+  const legacyKey = LEGACY_COMPONENT_MAP[component];
+  if (legacyKey && modules[legacyKey]) return modules[legacyKey];
 
   const candidates = [
-    `${withoutIndex}/index.tsx`,
-    `${withoutTsx}.tsx`,
-    base,
-    `${withoutTsx}/index.tsx`,
-  ];
+    // 2. Already a full /src/pages/… path (written by upgrade scripts or new seeds)
+    component.startsWith("/src/pages/") ? component : null,
+    // 3. Short path: /console/foo → /src/pages/console/foo/index.tsx
+    `/src/pages${component}/index.tsx`,
+    // 4. Short path: /console/foo/index → /src/pages/console/foo/index.tsx (strip trailing /index)
+    component.endsWith("/index") ? `/src/pages${component}.tsx` : null,
+    // 5. Short path: /console/foo → /src/pages/console/foo.tsx
+    `/src/pages${component}.tsx`,
+  ].filter(Boolean) as string[];
 
-  const uniqueCandidates = [...new Set(candidates)];
-  for (const key of uniqueCandidates) {
-    const componentModule = modules[key];
-    if (componentModule?.default) {
-      return componentModule.default;
-    }
+  for (const key of candidates) {
+    if (modules[key]) return modules[key];
   }
-
   return undefined;
 }
 
 /**
  * Convert menu items to react-router RouteObject.
+ * basePath accumulates parent path segments so child routes get full paths
+ * (e.g. parent "agent" + child "config" → "agent/config").
  */
-function toConsoleRelativePath(path: string): string {
-  const normalized = path.replace(/\\+/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "");
-
-  if (!normalized) return "";
-
-  if (normalized === "console") return "";
-  if (normalized.startsWith("console/")) {
-    return normalized.slice("console/".length);
-  }
-
-  return normalized;
-}
-
 function generateRoutes(menus: MenuItem[], basePath = ""): RouteObject[] {
   return menus.flatMap((menu) => {
-      const mergedPath = [basePath, menu.path].filter(Boolean).join("/");
-      const routePath = toConsoleRelativePath(mergedPath);
-  const Component = resolveMenuComponent(menu.component);
-  const LegacyComponent = LEGACY_ROUTE_COMPONENT_MAP[routePath];
+    const routes: RouteObject[] = [];
+    const segment = menu.path ?? "";
+    // Build full path: join basePath + segment, skip empty segments
+    const fullPath =
+      basePath && segment ? `${basePath}/${segment}` : segment || basePath;
 
-      const routes: RouteObject[] = [];
+    if (menu.component) {
+      const mod = resolveModule(menu.component);
+      const Component = mod?.default;
 
-      if ((Component || LegacyComponent) && routePath) {
+      if (Component && fullPath) {
         routes.push({
-          path: routePath,
-          element: Component ? <Component /> : <LegacyComponent />,
+          path: fullPath,
+          element: <Component />,
         });
       }
+    }
 
-      if (menu.children?.length) {
-        routes.push(...generateRoutes(menu.children, mergedPath));
-      }
+    if (menu.children?.length) {
+      routes.push(...generateRoutes(menu.children, fullPath));
+    }
 
-      return routes;
-    });
+    return routes;
+  });
 }
 
 function ConsoleRoutes() {
@@ -154,166 +156,6 @@ function ConsoleRoutes() {
   const routes = useMemo<RouteObject[]>(() => {
     const dynamicRoutes = generateRoutes(userInfo?.menus ?? []);
     return [
-      { path: "/dashboard", element: <DashboardPage /> },
-      {
-        path: "operation/*",
-        element: <OperationLayout />,
-        children: [
-          {
-            path: "cdk/management",
-            element: <CDKManagementPage />,
-          },
-          {
-            path: "cdk/records",
-            element: <CDKRecordsPage />,
-          },
-          {
-            path: "cdk/settings",
-            element: <CDKSettingsPage />,
-          },
-          {
-            path: "recharge/config",
-            element: <UserRechargeIndexPage />,
-          },
-          {
-            path: "membership/level",
-            element: <MembershipLevelIndexPage />,
-          },
-          {
-            path: "membership/plan",
-            element: <MembershipPlanIndexPage />,
-          },
-        ],
-      },
-      {
-        path: "decorate",
-        children: [
-          {
-            path: "apps",
-            element: <DecorateAppsIndexPage />,
-          },
-          {
-            path: "layout",
-            element: <DecorateLayoutIndexPage />,
-          },
-          {
-            path: "agents",
-            element: <DecorateAgentIndexPage />,
-          },
-        ],
-      },
-      {
-        path: "chat",
-        children: [
-          {
-            path: "record",
-            element: <ChatRecordIndexPage />,
-          },
-          {
-            path: "config",
-            element: <ChatConfigIndexPage />,
-          },
-        ],
-      },
-      {
-        path: "user",
-        children: [
-          {
-            path: "list",
-            element: <UserListIndexPage />,
-          },
-        ],
-      },
-      {
-        path: "order",
-        children: [
-          {
-            path: "membership",
-            element: <OrderMembershipIndexPage />,
-          },
-          {
-            path: "recharge",
-            element: <OrderRechargeIndexPage />,
-          },
-        ],
-      },
-      {
-        path: "notice",
-        children: [
-          {
-            path: "sms",
-            element: <NoticeSmsPage />,
-          },
-          {
-            path: "notification-settings",
-            element: <NoticeNotificationSettingsPage />,
-          },
-        ],
-      },
-      {
-        path: "channel",
-        children: [
-          {
-            path: "wechat-oa",
-            element: <ChannelWechatOaIndexPage />,
-          },
-        ],
-      },
-      {
-        path: "financial",
-        children: [
-          {
-            path: "analysis",
-            element: <FinancialAnalysisIndexPage />,
-          },
-          {
-            path: "balance-details",
-            element: <FinancialBalanceDetailsIndexPage />,
-          },
-        ],
-      },
-      {
-        path: "access",
-        children: [
-          {
-            path: "menu",
-            element: <AccessMenuIndexPage />,
-          },
-          {
-            path: "permission",
-            element: <AccessPermissionIndexPage />,
-          },
-          {
-            path: "role",
-            element: <AccessRoleIndexPage />,
-          },
-        ],
-      },
-      {
-        path: "system",
-        children: [
-          {
-            path: "agreement",
-            element: <SystemAgreementIndexPage />,
-          },
-          {
-            path: "login-config",
-            element: <SystemLoginConfigIndexPage />,
-          },
-          {
-            path: "pay-config",
-            element: <SystemPayConfigIndexPage />,
-          },
-          {
-            path: "website-config",
-            element: <SystemWebsiteConfigIndexPage />,
-          },
-          {
-            path: "storage-config",
-            element: <SystemStorageConfigIndexPage />,
-          },
-        ],
-      },
       ...dynamicRoutes,
       { path: "*", element: <NotFoundPage /> },
     ];
@@ -323,32 +165,6 @@ function ConsoleRoutes() {
 }
 
 export default function ConsoleLayout({ children }: { children?: React.ReactNode }) {
-  const location = useLocation();
-  const { userInfo } = useAuthStore((state) => state.auth);
-
-  const firstConsolePath = useMemo(
-    () => getFirstConsoleMenuPath(userInfo?.menus ?? [], userInfo),
-    [userInfo?.menus, userInfo],
-  );
-
-  if (!userInfo) {
-    return null;
-  }
-
-  if (!hasConsoleAccess(userInfo)) {
-    return <Navigate to={WEB_HOME_PATH} replace />;
-  }
-
-  const currentPath = location.pathname.replace(/\/$/, "") || "/console";
-
-  if (currentPath === "/console" && currentPath !== firstConsolePath) {
-    return <Navigate to={firstConsolePath} replace />;
-  }
-
-  if (!hasConsoleRouteAccess(userInfo, currentPath) && currentPath !== firstConsolePath) {
-    return <Navigate to={firstConsolePath} replace />;
-  }
-
   return (
     <SidebarProvider storageKey="layout-console-sidebar" className="bd-console-layout h-dvh">
       <AppSidebar />

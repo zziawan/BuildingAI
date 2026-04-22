@@ -669,7 +669,7 @@ export class AiModelOpenApiController extends BaseController {
         // 字节级缓冲区，用于跨 chunk 拼接不完整的逗号分隔字节流
         let byteStrBuffer = "";
 
-        const chunkToString = (chunk: Buffer | string): string => {
+        const chunkToString = (chunk: unknown): string => {
             // 真实 Buffer
             if (Buffer.isBuffer(chunk)) return chunk.toString("utf8");
 
