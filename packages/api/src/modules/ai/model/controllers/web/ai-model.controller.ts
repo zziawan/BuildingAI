@@ -150,6 +150,232 @@ function toOpenAIUsage(usage: any) {
     };
 }
 
+function parseOpenAIStreamFlag(value: unknown): boolean {
+    if (typeof value === "boolean") {
+        return value;
+    }
+
+    if (typeof value === "string") {
+        return value.toLowerCase() === "true";
+    }
+
+    if (typeof value === "number") {
+        return value === 1;
+    }
+
+    return false;
+}
+
+function extractInternalPayload(line: string): string {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith(":")) {
+        return "";
+    }
+
+    const payload = trimmed.startsWith("data:") ? trimmed.slice(5).trim() : trimmed;
+    if (!payload || payload === "[DONE]") {
+        return "";
+    }
+
+    return payload;
+}
+
+function extractTextFromUnknownChunk(value: unknown, depth: number = 0): string {
+    if (depth > 6) {
+        return "";
+    }
+
+    if (typeof value === "string") {
+        return value;
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((item) => extractTextFromUnknownChunk(item, depth + 1)).join("");
+    }
+
+    if (!value || typeof value !== "object") {
+        return "";
+    }
+
+    const data = value as Record<string, unknown>;
+
+    if (typeof data.delta === "string") {
+        return data.delta;
+    }
+
+    if (typeof data.text === "string") {
+        return data.text;
+    }
+
+    if (typeof data.content === "string") {
+        return data.content;
+    }
+
+    if (Array.isArray(data.parts)) {
+        return data.parts
+            .map((part) => {
+                if (!part || typeof part !== "object") {
+                    return "";
+                }
+                const p = part as Record<string, unknown>;
+                return p.type === "text" && typeof p.text === "string" ? p.text : "";
+            })
+            .join("");
+    }
+
+    if (Array.isArray(data.content)) {
+        return data.content
+            .map((part) => {
+                if (!part || typeof part !== "object") {
+                    return "";
+                }
+                const p = part as Record<string, unknown>;
+                return typeof p.text === "string" ? p.text : "";
+            })
+            .join("");
+    }
+
+    if (data.message) {
+        const text = extractAssistantTextFromUIMessage(data.message);
+        if (text) {
+            return text;
+        }
+    }
+
+    if (data.responseMessage) {
+        const text = extractAssistantTextFromUIMessage(data.responseMessage);
+        if (text) {
+            return text;
+        }
+    }
+
+    if (Array.isArray(data.choices)) {
+        const firstChoice = data.choices[0] as Record<string, unknown> | undefined;
+        const delta = firstChoice?.delta as Record<string, unknown> | undefined;
+        if (delta && typeof delta.content === "string") {
+            return delta.content;
+        }
+    }
+
+    const nestedPriorityKeys = ["data", "output", "result", "value", "payload", "message"];
+    for (const key of nestedPriorityKeys) {
+        if (key in data) {
+            const text = extractTextFromUnknownChunk(data[key], depth + 1);
+            if (text) {
+                return text;
+            }
+        }
+    }
+
+    let longest = "";
+    for (const val of Object.values(data)) {
+        const text = extractTextFromUnknownChunk(val, depth + 1);
+        if (text.length > longest.length) {
+            longest = text;
+        }
+    }
+
+    if (longest) {
+        return longest;
+    }
+
+    return "";
+}
+
+function extractInternalTextDelta(line: string): string {
+    const payload = extractInternalPayload(line);
+    if (!payload) {
+        return "";
+    }
+
+    // Vercel AI SDK data stream protocol:
+    // Text parts use prefix "0:" → e.g. 0:"Hello"
+    // Finish step uses prefix "e:" → e.g. e:{...}
+    // Finish message uses prefix "d:" → e.g. d:{...}
+    // Tool calls, errors, etc. use other single-char prefixes
+    if (payload.length > 2 && payload[1] === ":") {
+        const prefix = payload[0];
+        const partValue = payload.slice(2);
+
+        // Only extract text from type "0" (text delta) parts
+        // Ignore "e" (step finish), "d" (message finish), "2" (tool calls), etc.
+        if (prefix === "0") {
+            try {
+                // partValue is a JSON-encoded string e.g. "\"Hello\""
+                const decoded = JSON.parse(partValue);
+                if (typeof decoded === "string") {
+                    return decoded;
+                }
+                return extractTextFromUnknownChunk(decoded);
+            } catch {
+                // If JSON parse fails, try to strip surrounding quotes manually
+                const stripped = partValue.trim();
+                if (stripped.startsWith('"') && stripped.endsWith('"')) {
+                    return stripped.slice(1, -1).replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+                }
+                return "";
+            }
+        }
+
+        // For all other prefixes (e, d, 1, 2, 3, ...) → not text content
+        return "";
+    }
+
+    // Fallback: plain JSON payload (non-Vercel-protocol SSE line)
+    try {
+        const data = JSON.parse(payload);
+        return extractTextFromUnknownChunk(data);
+    } catch {
+        return "";
+    }
+}
+
+function extractLooseTextFromLine(line: string): string {
+    const payload = extractInternalPayload(line);
+    if (!payload) {
+        return "";
+    }
+
+    // If this looks like a Vercel AI SDK data stream line (single-char prefix + colon),
+    // only process type "0" (text delta) — skip all others
+    if (payload.length > 2 && payload[1] === ":") {
+        const prefix = payload[0];
+        if (prefix !== "0") {
+            return "";
+        }
+    }
+
+    let raw = payload;
+    if (raw.length > 2 && raw[1] === ":") {
+        raw = raw.slice(2);
+    }
+
+    const trimmed = raw.trim();
+    if (!trimmed) {
+        return "";
+    }
+
+    if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+        try {
+            const decoded = JSON.parse(trimmed);
+            return typeof decoded === "string" ? decoded : "";
+        } catch {
+            // fallback to regex extraction below
+        }
+    }
+
+    const match = trimmed.match(/"([^"\\]*(?:\\.[^"\\]*)*)"/);
+    if (!match?.[1]) {
+        return "";
+    }
+
+    try {
+        return JSON.parse(`"${match[1]}"`);
+    } catch {
+        return match[1];
+    }
+}
+
 /**
  * AI模型信息控制器（前台）
  *
@@ -303,7 +529,7 @@ export class AiModelOpenApiController extends BaseController {
         }
 
         const uiMessages = convertOpenAIMessagesToUIMessages(messages);
-        const stream = normalizedBody.stream !== false;
+        const stream = parseOpenAIStreamFlag(normalizedBody.stream);
         const completionId = `chatcmpl-${generateId()}`;
         const created = Math.floor(Date.now() / 1000);
 
@@ -326,7 +552,7 @@ export class AiModelOpenApiController extends BaseController {
             stream,
         };
 
-        if (!stream) {
+        const executeNonStreamChat = async () => {
             const responseChunks: string[] = [];
             let mockWritableEnded = false;
 
@@ -352,15 +578,24 @@ export class AiModelOpenApiController extends BaseController {
                 flushHeaders: () => {},
             } as unknown as Response;
 
-            await this.chatCompletionService.streamChat(chatParams, mockRes);
+            await this.chatCompletionService.streamChat(
+                {
+                    ...chatParams,
+                    stream: false,
+                },
+                mockRes,
+            );
 
             const raw = responseChunks.join("");
-            let parsed: any;
             try {
-                parsed = raw ? JSON.parse(raw) : undefined;
+                return raw ? JSON.parse(raw) : undefined;
             } catch {
-                parsed = undefined;
+                return undefined;
             }
+        };
+
+        if (!stream) {
+            const parsed = await executeNonStreamChat();
 
             const assistantText = extractAssistantTextFromUIMessage(parsed?.message);
             const usage = toOpenAIUsage(parsed?.message?.usage);
@@ -391,103 +626,164 @@ export class AiModelOpenApiController extends BaseController {
 
         let roleSent = false;
         let doneSent = false;
-        let lineBuffer = "";
+        let contentSent = false;
+        let bufferedText = "";
+
+        let streamResolve!: () => void;
+        const streamDone = new Promise<void>((resolve) => { streamResolve = resolve; });
 
         const writeChunk = (delta: Record<string, unknown>, finishReason: string | null = null) => {
-            if (res.writableEnded) {
-                return;
-            }
-
-            res.write(
-                `data: ${JSON.stringify({
-                    id: completionId,
-                    object: "chat.completion.chunk",
-                    created,
-                    model: modelId,
-                    choices: [
-                        {
-                            index: 0,
-                            delta,
-                            finish_reason: finishReason,
-                        },
-                    ],
-                })}\n\n`,
-            );
+            if (res.writableEnded) return;
+            res.write(`data: ${JSON.stringify({
+                id: completionId,
+                object: "chat.completion.chunk",
+                created,
+                model: modelId,
+                choices: [{ index: 0, delta, finish_reason: finishReason }],
+            })}\n\n`);
         };
 
         const flushDone = () => {
-            if (doneSent || res.writableEnded) {
-                return;
+            if (doneSent || res.writableEnded) return;
+            if (!roleSent) { writeChunk({ role: "assistant" }); roleSent = true; }
+            // 只在没有发送过任何内容时才兜底输出（非流式降级）
+            if (!contentSent && bufferedText) {
+                writeChunk({ content: bufferedText });
+                contentSent = true;
             }
-
-            if (!roleSent) {
-                writeChunk({ role: "assistant" });
-                roleSent = true;
-            }
-
             writeChunk({}, "stop");
             res.write("data: [DONE]\n\n");
             doneSent = true;
             res.end();
+            streamResolve();
         };
 
-        const processSsePayload = (payload: string) => {
-            if (!payload || payload === "[DONE]") {
+        /**
+         * chunk 实际类型是 Uint8Array（或类似 ArrayBufferView），
+         * Buffer.isBuffer() 和 typeof === "string" 都会返回 false，
+         * String(Uint8Array) 会产生 "100,97,116,97,..." 这样的逗号分隔字节字符串。
+         *
+         * 另外每个 write() 调用传入的字节可能是**不完整的**（截断的），
+         * 所以不能对单个 chunk 做正则完整匹配，需要用独立的字节缓冲区跨 chunk 拼接。
+         */
+        // 字节级缓冲区，用于跨 chunk 拼接不完整的逗号分隔字节流
+        let byteStrBuffer = "";
+
+        const chunkToString = (chunk: Buffer | string): string => {
+            // 真实 Buffer
+            if (Buffer.isBuffer(chunk)) return chunk.toString("utf8");
+
+            // Uint8Array / ArrayBufferView
+            if (chunk instanceof Uint8Array) return Buffer.from(chunk).toString("utf8");
+            if (ArrayBuffer.isView(chunk)) return Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength).toString("utf8");
+
+            // 普通字符串
+            if (typeof chunk === "string") return chunk;
+
+            // 其他对象：调用 String() 会得到 "100,97,..." 格式
+            // 将其放入字节缓冲区，尝试解码完整部分
+            const raw = String(chunk);
+            byteStrBuffer += (byteStrBuffer ? "," : "") + raw;
+
+            // 找到最后一个逗号，把完整部分解码，剩余的留在缓冲区
+            const lastComma = byteStrBuffer.lastIndexOf(",");
+            if (lastComma < 0) return "";
+
+            const complete = byteStrBuffer.slice(0, lastComma);
+            byteStrBuffer = byteStrBuffer.slice(lastComma + 1);
+
+            // 验证是否为纯数字（过滤掉意外内容）
+            const parts = complete.split(",");
+            if (!parts.every(p => /^\d+$/.test(p.trim()))) return complete; // 不是字节格式，直接返回
+
+            try {
+                return Buffer.from(parts.map(Number)).toString("utf8");
+            } catch {
+                return complete;
+            }
+        };
+
+        // 流结束时刷新字节缓冲区剩余内容
+        const flushByteBuffer = (): string => {
+            if (!byteStrBuffer) return "";
+            const parts = byteStrBuffer.split(",").filter(p => /^\d+$/.test(p.trim()));
+            byteStrBuffer = "";
+            if (!parts.length) return "";
+            try {
+                return Buffer.from(parts.map(Number)).toString("utf8");
+            } catch {
+                return "";
+            }
+        };
+
+        /**
+         * 解析 Vercel AI SDK UIMessageStream 协议的一行。
+         *
+         * pipeUIMessageStreamToResponse 输出的是 Vercel UIMessageStream 协议，
+         * 每行格式：  data: {"type":"text-delta","delta":"Hello"}
+         *             data: {"type":"reasoning-delta","id":"...","delta":"..."}
+         *             data: {"type":"start"|"start-step"|"finish-step"|"finish"|...}
+         *
+         * 我们只关心 text-delta 中的 delta 字段作为输出内容。
+         * reasoning-delta 是思考过程，不输出给客户端（OpenAI 格式不含 reasoning）。
+         */
+        const processLine = (line: string): void => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed === "data: [DONE]") return;
+
+            const jsonStr = trimmed.startsWith("data:") ? trimmed.slice(5).trim() : trimmed;
+            if (!jsonStr || jsonStr === "[DONE]") return;
+
+            let parsed: Record<string, unknown>;
+            try {
+                parsed = JSON.parse(jsonStr);
+            } catch {
                 return;
             }
 
-            try {
-                const data = JSON.parse(payload);
-                if (data?.type === "text-delta" && typeof data?.delta === "string") {
-                    if (!roleSent) {
-                        writeChunk({ role: "assistant" });
-                        roleSent = true;
-                    }
+            const type = parsed.type as string | undefined;
 
-                    if (data.delta.length > 0) {
-                        writeChunk({ content: data.delta });
-                    }
-                }
-            } catch {
-                // ignore non-JSON payloads
-            }
+            if (type !== "text-delta") return;
+
+            const delta = typeof parsed.delta === "string" ? parsed.delta : "";
+            if (!delta) return;
+
+            bufferedText += delta;
+            if (!roleSent) { writeChunk({ role: "assistant" }); roleSent = true; }
+            writeChunk({ content: delta });
+            contentSent = true;
         };
 
-        const consumeInternalChunk = (chunk: Buffer | string) => {
-            lineBuffer += typeof chunk === "string" ? chunk : chunk.toString();
+        // 行缓冲区：chunk 可能被截断，需要跨 chunk 拼接完整行
+        let lineBuffer = "";
 
-            let newlineIndex = lineBuffer.indexOf("\n");
-            while (newlineIndex >= 0) {
-                const line = lineBuffer.slice(0, newlineIndex).replace(/\r$/, "");
-                lineBuffer = lineBuffer.slice(newlineIndex + 1);
-
-                if (line.startsWith("data: ")) {
-                    processSsePayload(line.slice(6));
-                }
-
-                newlineIndex = lineBuffer.indexOf("\n");
+        const consumeChunk = (chunk: Buffer | string): void => {
+            const decoded = chunkToString(chunk);
+            lineBuffer += decoded;
+            while (true) {
+                const idx = lineBuffer.indexOf("\n");
+                if (idx < 0) break;
+                const line = lineBuffer.slice(0, idx).replace(/\r$/, "");
+                lineBuffer = lineBuffer.slice(idx + 1);
+                processLine(line);
             }
         };
 
         const mockRes = {
-            get writableEnded() {
-                return doneSent;
-            },
+            get writableEnded() { return doneSent; },
             setHeader: () => mockRes,
             writeHead: () => mockRes,
             write: (chunk: Buffer | string) => {
-                consumeInternalChunk(chunk);
+                consumeChunk(chunk);
                 return !res.writableEnded;
             },
             end: (chunk?: Buffer | string) => {
-                if (chunk) {
-                    consumeInternalChunk(chunk);
-                }
-
-                if (lineBuffer.trim().startsWith("data: ")) {
-                    processSsePayload(lineBuffer.trim().slice(6));
-                }
-                lineBuffer = "";
+                if (chunk) consumeChunk(chunk);
+                // 刷新字节缓冲区剩余内容
+                const remaining = flushByteBuffer();
+                if (remaining) lineBuffer += remaining;
+                // 处理末尾没有换行的残余内容
+                if (lineBuffer.trim()) { processLine(lineBuffer.trim()); lineBuffer = ""; }
                 flushDone();
             },
             on: () => mockRes,
@@ -496,10 +792,14 @@ export class AiModelOpenApiController extends BaseController {
             flushHeaders: () => {},
         } as unknown as Response;
 
-        await this.chatCompletionService.streamChat(chatParams, mockRes);
+        await (this.chatCompletionService.streamChat(chatParams, mockRes) as any);
 
-        if (!doneSent) {
-            flushDone();
-        }
+        // streamChat 非阻塞，await 返回时流可能还未结束，等待 mockRes.end 触发 streamDone
+        const timeout = new Promise<void>((_, rej) =>
+            setTimeout(() => rej(new Error("stream timeout")), 5 * 60 * 1000),
+        );
+        await Promise.race([streamDone, timeout]).catch(() => {});
+
+        if (!doneSent) flushDone();
     }
 }
