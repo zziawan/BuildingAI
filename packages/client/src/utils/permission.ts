@@ -6,6 +6,7 @@ import type { MenuItem } from "@buildingai/web-types";
 export const WEB_HOME_PATH = "/";
 
 const RESTRICTED_ROOT_CODES = new Set(["workspace", "system-manage"]);
+const RESTRICTED_BRANCH_PUBLIC_CODES = new Set(["api-key"]);
 
 function hasMenuPermission(menu: MenuItem, userInfo?: any, inRestrictedBranch = false): boolean {
   if (userInfo?.isRoot) {
@@ -15,6 +16,9 @@ function hasMenuPermission(menu: MenuItem, userInfo?: any, inRestrictedBranch = 
   const userPermissions = userInfo?.permissionsCodes ?? [];
 
   if (inRestrictedBranch && !menu.permissionCode) {
+    if (menu.code && RESTRICTED_BRANCH_PUBLIC_CODES.has(menu.code)) {
+      return true;
+    }
     return false;
   }
 
@@ -137,6 +141,9 @@ export function hasConsoleRouteAccess(userInfo: any, currentPath: string): boole
         inRestrictedBranch || RESTRICTED_ROOT_CODES.has(menu.code || "");
 
       if (currentInRestrictedBranch && !menu.permissionCode) {
+        if (menu.code && RESTRICTED_BRANCH_PUBLIC_CODES.has(menu.code)) {
+          return normalizedPath === fullPath || normalizedPath.startsWith(fullPath + "/");
+        }
         if (menu.children && menu.children.length > 0) {
           if (
             checkPathInMenus(

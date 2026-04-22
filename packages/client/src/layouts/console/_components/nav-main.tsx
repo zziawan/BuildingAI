@@ -31,6 +31,7 @@ import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 const RESTRICTED_ROOT_CODES = new Set(["workspace", "system-manage"]);
+const RESTRICTED_BRANCH_PUBLIC_CODES = new Set(["api-key"]);
 
 /**
  * Check if user has permission to access a menu item
@@ -80,6 +81,9 @@ function filterVisibleMenus(menus: MenuItem[], userInfo?: any, inRestrictedBranc
 
       if (!userInfo?.isRoot && currentInRestrictedBranch) {
         if (!menu.permissionCode) {
+          if (menu.code && RESTRICTED_BRANCH_PUBLIC_CODES.has(menu.code)) {
+            return true;
+          }
           return hasVisibleChildren;
         }
       }

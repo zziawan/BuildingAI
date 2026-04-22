@@ -19,6 +19,7 @@ import { PayconfigConsoleController } from "./controllers/console/payconfig.cont
 import { StorageConfigController } from "./controllers/console/storage-config.controller";
 import { SystemConsoleController } from "./controllers/console/system.controller";
 import { WebsiteConsoleController } from "./controllers/console/website.controller";
+import { LegacyRoutesWebController } from "./controllers/web/legacy-routes.controller";
 import { StorageConfigWebController } from "./controllers/web/storage-config.controller";
 import { PayconfigService } from "./services/payconfig.service";
 import { StorageConfigService } from "./services/storage-config.service";
@@ -54,6 +55,7 @@ import { WebsiteService } from "./services/website.service";
         PayconfigConsoleController,
         StorageConfigController,
         StorageConfigWebController,
+        LegacyRoutesWebController,
     ],
     providers: [
         WebsiteService,

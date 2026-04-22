@@ -192,16 +192,22 @@ export class DashboardService extends BaseService<any> {
         const totalAiConversations = await this.aiChatRecordRepository.count();
         const totalConversations = totalAgentConversations + totalAiConversations;
 
-        // 总Token数
-        const agentTokensQuery = await this.agentChatRecordRepository
-            .createQueryBuilder("record")
-            .select("COALESCE(SUM(record.totalTokens), 0)", "total")
+        // 总Token数（按消息 usage 聚合，避免会话记录 totalTokens 未回填导致统计为 0）
+        const agentTokensQuery = await this.agentChatMessageRepository
+            .createQueryBuilder("message")
+            .select(
+                "COALESCE(SUM((message.message->'usage'->>'totalTokens')::int), 0)",
+                "total",
+            )
             .getRawOne();
         const agentTotalTokens = Number(agentTokensQuery?.total || 0);
 
-        const aiTokensQuery = await this.aiChatRecordRepository
-            .createQueryBuilder("record")
-            .select("COALESCE(SUM(record.totalTokens), 0)", "total")
+        const aiTokensQuery = await this.aiChatMessageRepository
+            .createQueryBuilder("message")
+            .select(
+                "COALESCE(SUM((message.message->'usage'->>'totalTokens')::int), 0)",
+                "total",
+            )
             .getRawOne();
         const aiTotalTokens = Number(aiTokensQuery?.total || 0);
 
