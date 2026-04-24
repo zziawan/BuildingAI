@@ -167,7 +167,7 @@ export function DefaultNavUser() {
                   }}
                 >
                   <Zap />
-                  积分购买
+                  账户充值
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onClick={() => settingsDialog.open("personalized")}>

@@ -13,22 +13,26 @@ export function generateWebApiBase() {
 }
 
 function handleHttpError(error: HttpError): void {
+    // Don't show error toasts when user is not authenticated
+    if (!useAuthStore.getState().auth.token) return;
     const message = error.message || "Bad request";
     toast.error(message);
 }
 
 async function handleAuthError(error: unknown): Promise<void> {
+    await useAuthStore.getState().authActions.logout();
+
+    // If already on login page, don't show toast or redirect
+    if (location.pathname.includes("/login")) {
+        return;
+    }
+
     if (error && typeof error === "object" && "response" in error) {
         const axiosError = error as AxiosError<{ message?: string }>;
         const message = axiosError.response?.data?.message;
         if (message) {
             toast.error(message);
         }
-    }
-    await useAuthStore.getState().authActions.logout();
-
-    if (location.pathname.includes("/login")) {
-        return;
     }
     location.replace(`/login?redirect=${location.pathname}`);
 }
