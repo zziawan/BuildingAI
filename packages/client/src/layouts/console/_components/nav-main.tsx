@@ -30,12 +30,27 @@ import dynamicIconImports from "lucide-react/dynamicIconImports";
 import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+function isBlockedConsoleMenu(menu: MenuItem): boolean {
+  const menuPath = (menu.path || "").toLowerCase();
+  const menuCode = (menu.code || "").toLowerCase();
+  const menuComponent = (menu.component || "").toLowerCase();
+
+  return (
+    menuPath === "model" ||
+    menuPath === "api-key" ||
+    menuCode === "ai-models" ||
+    menuCode === "api-key" ||
+    menuComponent.includes("/src/pages/console/ai/model/") ||
+    menuComponent.includes("/src/pages/console/ai/api-key/")
+  );
+}
+
 /**
  * Filter visible menu items (type !== 3 && isHidden !== 1)
  */
 function filterVisibleMenus(menus: MenuItem[]): MenuItem[] {
   return menus
-    .filter((menu) => menu.type !== 3 && menu.isHidden !== 1)
+    .filter((menu) => menu.type !== 3 && menu.isHidden !== 1 && !isBlockedConsoleMenu(menu))
     .map((menu) => ({
       ...menu,
       children: menu.children ? filterVisibleMenus(menu.children) : [],
@@ -48,7 +63,11 @@ function filterVisibleMenus(menus: MenuItem[]): MenuItem[] {
 function getVisibleChildren(menu: MenuItem): MenuItem[] {
   if (!menu.children?.length) return [];
   return menu.children.filter(
-    (child) => child.type !== 3 && child.isHidden !== 1 && (child.type === 1 || child.component),
+    (child) =>
+      child.type !== 3 &&
+      child.isHidden !== 1 &&
+      !isBlockedConsoleMenu(child) &&
+      (child.type === 1 || child.component),
   );
 }
 

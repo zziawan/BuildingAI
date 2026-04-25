@@ -100,18 +100,6 @@
                 ]
             },
             {
-                "name": "用户API-keys",
-                "code": "api-key",
-                "path": "api-key",
-                "icon": "key-round",
-                "component": "/src/pages/console/ai/api-key/index.tsx",
-                "permissionCode": null,
-                "sort": 500,
-                "isHidden": 0,
-                "type": 2,
-                "sourceType": 1
-            },
-            {
                 "name": "MCP",
                 "code": "ai-config-mcp-server",
                 "path": "mcp",
@@ -146,19 +134,6 @@
                 "isHidden": 0,
                 "type": 2,
                 "sourceType": 1
-            },
-            
-            {
-              "name": "模型",
-              "code": "ai-models",
-              "path": "model",
-              "icon": "bot",
-              "component": "/src/pages/console/ai/model/index.tsx",
-              "permissionCode": "ai-models:list",
-              "sort": 400,
-              "isHidden": 0,
-              "type": 2,
-              "sourceType": 1
             },
             
             {

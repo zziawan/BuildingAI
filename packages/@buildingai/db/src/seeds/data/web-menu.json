@@ -3,9 +3,9 @@
         {
             "id": "menu_home_fixed",
             "icon": "square-pen",
-            "title": "新对话",
+            "title": "AI助手",
             "link": {
-                "label": "新对话",
+                "label": "AI助手",
                 "path": "/",
                 "type": "system",
                 "query": {},
@@ -16,9 +16,9 @@
         {
             "id": "menu_model",
             "icon": "bot",
-            "title": "模型",
+            "title": "模型广场",
             "link": {
-                "label": "模型",
+                "label": "模型广场",
                 "path": "/model",
                 "type": "system",
                 "query": {},

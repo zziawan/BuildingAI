@@ -34,7 +34,6 @@ const LEGACY_COMPONENT_MAP: Record<string, string> = {
   "/console/ai/datasets/config": "/src/pages/console/ai/datasets/config/index.tsx",
 
   // ── AI misc ────────────────────────────────────────────────────────────────
-  "/console/ai/model": "/src/pages/console/ai/model/index.tsx",
   "/console/extension": "/src/pages/console/extension/index.tsx",
 
   // ── Operation ──────────────────────────────────────────────────────────────
@@ -88,6 +87,21 @@ const LEGACY_COMPONENT_MAP: Record<string, string> = {
     "/src/pages/console/system/storage-config/index.tsx",
 };
 
+function isBlockedConsoleMenu(menu: MenuItem): boolean {
+  const menuPath = (menu.path || "").toLowerCase();
+  const menuCode = (menu.code || "").toLowerCase();
+  const menuComponent = (menu.component || "").toLowerCase();
+
+  return (
+    menuPath === "model" ||
+    menuPath === "api-key" ||
+    menuCode === "ai-models" ||
+    menuCode === "api-key" ||
+    menuComponent.includes("/src/pages/console/ai/model/") ||
+    menuComponent.includes("/src/pages/console/ai/api-key/")
+  );
+}
+
 /**
  * Resolve a menu component string to the actual module key used by import.meta.glob.
  * Resolution order:
@@ -124,6 +138,10 @@ function resolveModule(component: string) {
  */
 function generateRoutes(menus: MenuItem[], basePath = ""): RouteObject[] {
   return menus.flatMap((menu) => {
+    if (isBlockedConsoleMenu(menu)) {
+      return [];
+    }
+
     const routes: RouteObject[] = [];
     const segment = menu.path ?? "";
     // Build full path: join basePath + segment, skip empty segments

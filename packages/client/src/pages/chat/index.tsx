@@ -31,7 +31,7 @@ const IndexPage = () => {
   const chatConfig = rawChatConfig as ChatConfig | undefined;
 
   useDocumentHead({
-    title: id ? conversation?.title || "新对话" : "新对话",
+    title: id ? conversation?.title || "AI助手" : "AI助手",
   });
 
   const suggestions: Suggestion[] = useMemo(() => {
@@ -50,7 +50,7 @@ const IndexPage = () => {
   return (
     <AssistantProvider {...assistant}>
       <Chat
-        title={conversation?.title || "新对话"}
+        title={conversation?.title || "AI助手"}
         welcomeTitle={welcomeInfo?.title}
         welcomeDescription={welcomeInfo?.description}
         footerText={welcomeInfo?.footer}

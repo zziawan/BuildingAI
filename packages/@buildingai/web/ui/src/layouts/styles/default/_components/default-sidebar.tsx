@@ -115,7 +115,7 @@ export function DefaultAppSidebar({ ...props }: React.ComponentProps<typeof Side
     () =>
       conversationsData?.items?.map((conversation) => ({
         id: `conversation-${conversation.id}`,
-        title: conversation.title || "新对话",
+        title: conversation.title || "AI助手",
         path: `/c/${conversation.id}`,
       })) || [],
     [conversationsData],

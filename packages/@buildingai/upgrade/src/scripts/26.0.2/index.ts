@@ -29,13 +29,28 @@ const HOME_MENU_ID = "menu_home_fixed";
 const MODEL_MENU_ID = "menu_model";
 const USER_API_KEY_MENU_ID = "menu_user_api_key";
 
+const HOME_MENU_DEFAULT: MenuItem = {
+    id: HOME_MENU_ID,
+    icon: "square-pen",
+    title: "AI助手",
+    isHidden: false,
+    link: {
+        label: "AI助手",
+        path: "/",
+        type: "system",
+        query: {},
+        component: "/src/pages/chat/index.tsx",
+        target: "_self",
+    },
+};
+
 const MODEL_MENU_DEFAULT: MenuItem = {
     id: MODEL_MENU_ID,
     icon: "bot",
-    title: "模型",
+    title: "模型广场",
     isHidden: false,
     link: {
-        label: "模型",
+        label: "模型广场",
         path: "/model",
         type: "system",
         query: {},
@@ -86,24 +101,26 @@ export class Upgrade extends BaseUpgradeScript {
 
         const menus = Array.isArray(menuConfig.menus) ? menuConfig.menus : [];
 
+        const existingHomeMenu = menus.find((menu) => menu.id === HOME_MENU_ID);
         const existingModelMenu = menus.find((menu) => menu.id === MODEL_MENU_ID);
         const existingUserApiKeyMenu = menus.find((menu) => menu.id === USER_API_KEY_MENU_ID);
 
+        const homeMenu = this.mergeMenu(existingHomeMenu, HOME_MENU_DEFAULT);
         const modelMenu = this.mergeMenu(existingModelMenu, MODEL_MENU_DEFAULT);
         const userApiKeyMenu = this.mergeMenu(existingUserApiKeyMenu, USER_API_KEY_MENU_DEFAULT);
 
         const menusWithoutTarget = menus.filter(
-            (menu) => menu.id !== MODEL_MENU_ID && menu.id !== USER_API_KEY_MENU_ID,
+            (menu) =>
+                menu.id !== HOME_MENU_ID &&
+                menu.id !== MODEL_MENU_ID &&
+                menu.id !== USER_API_KEY_MENU_ID,
         );
 
-        const homeMenuIndex = menusWithoutTarget.findIndex((menu) => menu.id === HOME_MENU_ID);
-        const insertIndex = homeMenuIndex >= 0 ? homeMenuIndex + 1 : 0;
-
         const nextMenus = [
-            ...menusWithoutTarget.slice(0, insertIndex),
+            homeMenu,
             modelMenu,
             userApiKeyMenu,
-            ...menusWithoutTarget.slice(insertIndex),
+            ...menusWithoutTarget,
         ];
 
         if (JSON.stringify(menus) === JSON.stringify(nextMenus)) {

@@ -42,13 +42,28 @@ const DEFAULT_CONFIG: DecorateMenuConfig = {
     menus: [],
 };
 
+const DEFAULT_HOME_MENU: DecorateMenuItem = {
+    id: HOME_MENU_ID,
+    icon: "square-pen",
+    title: "AI助手",
+    isHidden: false,
+    link: {
+        label: "AI助手",
+        path: "/",
+        type: "system",
+        query: {},
+        component: "/src/pages/chat/index.tsx",
+        target: "_self",
+    },
+};
+
 const DEFAULT_MODEL_MENU: DecorateMenuItem = {
     id: MODEL_MENU_ID,
     icon: "bot",
-    title: "模型",
+    title: "模型广场",
     isHidden: false,
     link: {
-        label: "模型",
+        label: "模型广场",
         path: "/model",
         type: "system",
         query: {},
@@ -97,6 +112,10 @@ export class DecorateWebController extends BaseController {
     }
 
     private ensureDefaultHomeMenus(menus: DecorateMenuItem[]): DecorateMenuItem[] {
+        const homeMenu = this.mergeMenu(
+            menus.find((menu) => menu.id === HOME_MENU_ID),
+            DEFAULT_HOME_MENU,
+        );
         const modelMenu = this.mergeMenu(
             menus.find((menu) => menu.id === MODEL_MENU_ID),
             DEFAULT_MODEL_MENU,
@@ -107,17 +126,20 @@ export class DecorateWebController extends BaseController {
         );
 
         const menusWithoutTargets = menus.filter(
-            (menu) => menu.id !== MODEL_MENU_ID && menu.id !== USER_API_KEY_MENU_ID,
+            (menu) =>
+                menu.id !== HOME_MENU_ID &&
+                menu.id !== MODEL_MENU_ID &&
+                menu.id !== USER_API_KEY_MENU_ID,
         );
 
-        const homeMenuIndex = menusWithoutTargets.findIndex((menu) => menu.id === HOME_MENU_ID);
-        const insertIndex = homeMenuIndex >= 0 ? homeMenuIndex + 1 : 0;
+        const insertIndex = 1;
 
         return [
-            ...menusWithoutTargets.slice(0, insertIndex),
+            ...menusWithoutTargets.slice(0, insertIndex - 1),
+            homeMenu,
             modelMenu,
             userApiKeyMenu,
-            ...menusWithoutTargets.slice(insertIndex),
+            ...menusWithoutTargets.slice(insertIndex - 1),
         ];
     }
 
