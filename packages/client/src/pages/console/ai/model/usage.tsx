@@ -178,6 +178,8 @@ async function callModel() {
 callModel().catch(console.error);`
   };
 
+  const currentCodeExample = codeExamples[activeTab];
+
   return (
     <PageContainer>
       <div className="space-y-6">
@@ -330,11 +332,21 @@ callModel().catch(console.error);`
           </div>
           <div className="p-6">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "curl" | "python" | "nodejs")}>
-              <TabsList className="w-fit">
-                <TabsTrigger value="curl">cURL</TabsTrigger>
-                <TabsTrigger value="python">Python</TabsTrigger>
-                <TabsTrigger value="nodejs">Node.js</TabsTrigger>
-              </TabsList>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <TabsList className="w-fit">
+                  <TabsTrigger value="curl">cURL</TabsTrigger>
+                  <TabsTrigger value="python">Python</TabsTrigger>
+                  <TabsTrigger value="nodejs">Node.js</TabsTrigger>
+                </TabsList>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCopy(currentCodeExample, `code-${activeTab}`)}
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  {copiedParam === `code-${activeTab}` ? "已复制" : "复制当前示例"}
+                </Button>
+              </div>
               <div className="mt-4">
                 <TabsContent value="curl" className="mt-0">
                   <div className="bg-muted p-4 rounded-md overflow-x-auto">

@@ -137,6 +137,9 @@ export function hasConsoleRouteAccess(userInfo: any, currentPath: string): boole
         continue;
       }
 
+      const menuPath = basePath ? `${basePath}/${menu.path}`.replace(/\/+/g, "/") : menu.path;
+      const fullPath = normalizePath(`/console/${menuPath}`.replace(/\/+/g, "/"));
+
       const currentInRestrictedBranch =
         inRestrictedBranch || RESTRICTED_ROOT_CODES.has(menu.code || "");
 
@@ -163,9 +166,6 @@ export function hasConsoleRouteAccess(userInfo: any, currentPath: string): boole
         // 没有权限，跳过此菜单及其子菜单
         continue;
       }
-
-      const menuPath = basePath ? `${basePath}/${menu.path}`.replace(/\/+/g, "/") : menu.path;
-      const fullPath = normalizePath(`/console/${menuPath}`.replace(/\/+/g, "/"));
 
       // 仅页面菜单允许匹配，防止目录路径前缀越权
       if (

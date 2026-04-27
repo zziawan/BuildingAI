@@ -1,9 +1,10 @@
 import AuthGuard from "@buildingai/ui/components/auth/auth-guard";
 import GlobalError from "@buildingai/ui/components/exception/global-error";
-import NotFoundPage from "@buildingai/ui/components/exception/not-found-page";
+import { useAuthStore } from "@buildingai/stores";
 import MainLayout from "@buildingai/ui/layouts/main/index";
 import DefaultLayout from "@buildingai/ui/layouts/styles/default/index";
-import { createBrowserRouter } from "react-router-dom";
+import { useEffect } from "react";
+import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
 
 import AgentsIndexPage from "@/pages/agents";
 import AgentChatPage from "@/pages/agents/detail/chat";
@@ -32,6 +33,40 @@ import { LoginPhonePage } from "../pages/login/login-phone";
 import { LoginWechatPage } from "../pages/login/login-wechat";
 import { OAuthCallbackPage } from "../pages/login/oauth-callback";
 import AlipayReturnPage from "../pages/payment/alipay-return";
+
+function RouteFallbackRedirect() {
+  const location = useLocation();
+  const { isLogin } = useAuthStore((state) => state.authActions);
+
+  useEffect(() => {
+    const isApiPath = location.pathname === "/api" || location.pathname.startsWith("/api/");
+    if (!isApiPath) {
+      return;
+    }
+
+    window.location.replace(`${location.pathname}${location.search}${location.hash}`);
+  }, [location.hash, location.pathname, location.search]);
+
+  const isApiPath = location.pathname === "/api" || location.pathname.startsWith("/api/");
+  if (isApiPath) {
+    return null;
+  }
+
+  if (isLogin()) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <Navigate
+      to={{
+        pathname: "/login",
+        search: `?redirect=${encodeURIComponent(`${location.pathname}${location.search}`)}`,
+      }}
+      replace
+      state={{ redirect: `${location.pathname}${location.search}` }}
+    />
+  );
+}
 
 export const router = createBrowserRouter([
   {
@@ -107,7 +142,11 @@ export const router = createBrowserRouter([
         ),
         children: [
           {
-            element: <DynamicHomePage />,
+            element: (
+              <AuthGuard>
+                <DynamicHomePage />
+              </AuthGuard>
+            ),
             children: [
               {
                 index: true,
@@ -121,11 +160,19 @@ export const router = createBrowserRouter([
           },
           {
             path: "/chat",
-            element: <ChatPage />,
+            element: (
+              <AuthGuard>
+                <ChatPage />
+              </AuthGuard>
+            ),
           },
           {
             path: "/chat/:id",
-            element: <ChatPage />,
+            element: (
+              <AuthGuard>
+                <ChatPage />
+              </AuthGuard>
+            ),
           },
           {
             path: "/apps",
@@ -188,7 +235,7 @@ export const router = createBrowserRouter([
           },
           {
             path: "*",
-            element: <NotFoundPage />,
+            element: <RouteFallbackRedirect />,
           },
         ],
       },
@@ -209,7 +256,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "*",
-        element: <NotFoundPage />,
+        element: <RouteFallbackRedirect />,
       },
     ],
   },
