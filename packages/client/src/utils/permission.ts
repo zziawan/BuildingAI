@@ -147,6 +147,9 @@ export function hasConsoleRouteAccess(userInfo: any, currentPath: string): boole
         if (menu.code && RESTRICTED_BRANCH_PUBLIC_CODES.has(menu.code)) {
           return normalizedPath === fullPath || normalizedPath.startsWith(fullPath + "/");
         }
+        if (menu.code === "operation" && menu.component) {
+          return normalizedPath === fullPath || normalizedPath.startsWith(fullPath + "/");
+        }
         if (menu.children && menu.children.length > 0) {
           if (
             checkPathInMenus(

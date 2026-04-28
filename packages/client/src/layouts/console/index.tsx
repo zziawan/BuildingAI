@@ -112,9 +112,17 @@ function isBlockedConsoleMenu(menu: MenuItem): boolean {
  *  3. Short /console/… path → add /src/pages prefix and try index.tsx / .tsx
  */
 function resolveModule(component: string) {
+  const moduleKey = resolveModuleKey(component);
+  if (!moduleKey) {
+    return undefined;
+  }
+  return modules[moduleKey];
+}
+
+function resolveModuleKey(component: string): string | undefined {
   // 1. Legacy map lookup (handles structurally different old paths)
   const legacyKey = LEGACY_COMPONENT_MAP[component];
-  if (legacyKey && modules[legacyKey]) return modules[legacyKey];
+  if (legacyKey && modules[legacyKey]) return legacyKey;
 
   const candidates = [
     // 2. Already a full /src/pages/… path (written by upgrade scripts or new seeds)
@@ -128,7 +136,7 @@ function resolveModule(component: string) {
   ].filter(Boolean) as string[];
 
   for (const key of candidates) {
-    if (modules[key]) return modules[key];
+    if (modules[key]) return key;
   }
   return undefined;
 }
@@ -170,13 +178,90 @@ function generateRoutes(menus: MenuItem[], basePath = ""): RouteObject[] {
   });
 }
 
+function collectConventionRouteRoots(
+  menus: MenuItem[],
+  basePath = "",
+  roots = new Set<string>(),
+): Set<string> {
+  for (const menu of menus) {
+    if (menu.isHidden === 1 || menu.type === 3 || isBlockedConsoleMenu(menu)) {
+      continue;
+    }
+
+    const segment = menu.path ?? "";
+    const fullPath = basePath && segment ? `${basePath}/${segment}` : segment || basePath;
+
+    if (menu.component && fullPath) {
+      roots.add(fullPath.replace(/^\/+|\/+$/g, ""));
+    }
+
+    if (menu.children?.length) {
+      collectConventionRouteRoots(menu.children, fullPath, roots);
+    }
+  }
+
+  return roots;
+}
+
+function generateConventionRoutes(menus: MenuItem[]): RouteObject[] {
+  const routes: RouteObject[] = [];
+  const roots = collectConventionRouteRoots(menus);
+
+  for (const rootPath of roots) {
+    const rootPrefix = `/src/pages/console/${rootPath}/`;
+    const rootIndexKey = `/src/pages/console/${rootPath}/index.tsx`;
+
+    for (const [moduleKey, mod] of Object.entries(modules)) {
+      if (!moduleKey.startsWith(rootPrefix)) {
+        continue;
+      }
+      if (!moduleKey.endsWith("/index.tsx")) {
+        continue;
+      }
+      if (moduleKey === rootIndexKey) {
+        continue;
+      }
+      if (moduleKey.includes("/_")) {
+        continue;
+      }
+
+      const routePath = moduleKey
+        .replace("/src/pages/console/", "")
+        .replace("/index.tsx", "")
+        .replace(/\/+/g, "/");
+      const Component = mod.default;
+
+      if (Component) {
+        routes.push({
+          path: routePath,
+          element: <Component />,
+        });
+      }
+    }
+  }
+
+  return routes;
+}
+
 function ConsoleRoutes() {
   const { userInfo } = useAuthStore((state) => state.auth);
 
   const routes = useMemo<RouteObject[]>(() => {
     const dynamicRoutes = generateRoutes(userInfo?.menus ?? []);
+    const conventionRoutes = generateConventionRoutes(userInfo?.menus ?? []);
+    const uniqueRoutes: RouteObject[] = [];
+    const routePathSet = new Set<string>();
+
+    for (const route of [...dynamicRoutes, ...conventionRoutes]) {
+      if (!route.path || routePathSet.has(route.path)) {
+        continue;
+      }
+      routePathSet.add(route.path);
+      uniqueRoutes.push(route);
+    }
+
     return [
-      ...dynamicRoutes,
+      ...uniqueRoutes,
       { path: "*", element: <NotFoundPage /> },
     ];
   }, [userInfo?.menus]);
