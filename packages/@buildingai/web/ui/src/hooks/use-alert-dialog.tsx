@@ -71,10 +71,14 @@ function AlertDialogProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleOpenChange = React.useCallback((open: boolean) => {
-    if (!open && !resolvedRef.current) {
-      resolvedRef.current = true;
-      callbacksRef.current.onCancel?.();
-      callbacksRef.current.resolve?.(false);
+    if (!open) {
+      if (!resolvedRef.current) {
+        // Closed via Escape / clicking outside — treat as cancel
+        resolvedRef.current = true;
+        callbacksRef.current.onCancel?.();
+        callbacksRef.current.resolve?.(false);
+      }
+      // Always sync React state so the overlay is removed
       setState((prev) => ({ ...prev, open: false }));
     }
   }, []);
@@ -82,17 +86,26 @@ function AlertDialogProvider({ children }: { children: React.ReactNode }) {
   const handleConfirm = React.useCallback(async () => {
     if (resolvedRef.current) return;
     resolvedRef.current = true;
-    await callbacksRef.current.onConfirm?.();
-    callbacksRef.current.resolve?.(true);
-    setState((prev) => ({ ...prev, open: false }));
+    try {
+      await callbacksRef.current.onConfirm?.();
+      callbacksRef.current.resolve?.(true);
+    } catch {
+      // onConfirm threw — treat as cancelled so the caller's Promise rejects normally
+      callbacksRef.current.resolve?.(false);
+    } finally {
+      setState((prev) => ({ ...prev, open: false }));
+    }
   }, []);
 
   const handleCancel = React.useCallback(async () => {
     if (resolvedRef.current) return;
     resolvedRef.current = true;
-    await callbacksRef.current.onCancel?.();
-    callbacksRef.current.resolve?.(false);
-    setState((prev) => ({ ...prev, open: false }));
+    try {
+      await callbacksRef.current.onCancel?.();
+    } finally {
+      callbacksRef.current.resolve?.(false);
+      setState((prev) => ({ ...prev, open: false }));
+    }
   }, []);
 
   const contextValue = React.useMemo(() => ({ confirm }), [confirm]);
