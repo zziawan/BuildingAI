@@ -67,6 +67,28 @@ export type SendSmsCodeResponse = string;
  */
 export type SmsLoginResponse = LoginResponse;
 
+export type ForgotPasswordSendSmsCodeRequest = {
+    mobile: string;
+    areaCode?: string;
+};
+
+export type ForgotPasswordVerifySmsCodeRequest = {
+    mobile: string;
+    code: string;
+    areaCode?: string;
+};
+
+export type ForgotPasswordVerifySmsCodeResponse = {
+    resetToken: string;
+    expiresIn: number;
+};
+
+export type ResetPasswordRequest = {
+    resetToken: string;
+    newPassword: string;
+    confirmPassword: string;
+};
+
 export function useLoginMutation(options?: MutationOptionsUtil<LoginResponse, LoginRequest>) {
     return useMutation<LoginResponse, Error, LoginRequest>({
         mutationFn: (vars) => apiHttpClient.post<LoginResponse>("/auth/login", vars),
@@ -94,6 +116,45 @@ export function useSmsLoginMutation(
 ) {
     return useMutation<SmsLoginResponse, Error, SmsLoginRequest>({
         mutationFn: (vars) => apiHttpClient.post<SmsLoginResponse>("/auth/sms/login", vars),
+        ...options,
+    });
+}
+
+export function useForgotPasswordSendSmsCodeMutation(
+    options?: MutationOptionsUtil<SendSmsCodeResponse, ForgotPasswordSendSmsCodeRequest>,
+) {
+    return useMutation<SendSmsCodeResponse, Error, ForgotPasswordSendSmsCodeRequest>({
+        mutationFn: (vars) =>
+            apiHttpClient.post<SendSmsCodeResponse>("/auth/password/forgot/sms/send-code", vars),
+        ...options,
+    });
+}
+
+export function useForgotPasswordVerifySmsCodeMutation(
+    options?: MutationOptionsUtil<
+        ForgotPasswordVerifySmsCodeResponse,
+        ForgotPasswordVerifySmsCodeRequest
+    >,
+) {
+    return useMutation<
+        ForgotPasswordVerifySmsCodeResponse,
+        Error,
+        ForgotPasswordVerifySmsCodeRequest
+    >({
+        mutationFn: (vars) =>
+            apiHttpClient.post<ForgotPasswordVerifySmsCodeResponse>(
+                "/auth/password/forgot/sms/verify-code",
+                vars,
+            ),
+        ...options,
+    });
+}
+
+export function useResetPasswordMutation(
+    options?: MutationOptionsUtil<null, ResetPasswordRequest>,
+) {
+    return useMutation<null, Error, ResetPasswordRequest>({
+        mutationFn: (body) => apiHttpClient.post<null>("/auth/password/reset", body),
         ...options,
     });
 }

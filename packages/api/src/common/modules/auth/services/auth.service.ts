@@ -537,6 +537,27 @@ export class AuthService extends BaseService<User> {
         return null;
     }
 
+    async resetPassword(userId: string, newPassword: string) {
+        const user = await this.findOne({
+            where: { id: userId },
+        });
+
+        if (!user) {
+            throw HttpErrorFactory.notFound(`ID为 ${userId} 的用户不存在`);
+        }
+
+        const salt = await bcrypt.genSalt();
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await this.updateById(userId, {
+            password: hashedPassword,
+        });
+
+        await this.userTokenService.revokeAllTokens(userId);
+
+        return null;
+    }
+
     /**
      * 退出登录
      *

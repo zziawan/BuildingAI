@@ -13,6 +13,11 @@ import { HttpErrorFactory } from "@buildingai/errors";
 import { isDevelopment } from "@buildingai/utils";
 import { WebController } from "@common/decorators";
 import { ChangePasswordDto } from "@common/modules/auth/dto/change-password.dto";
+import {
+    ForgotPasswordSendSmsCodeDto,
+    ForgotPasswordVerifySmsCodeDto,
+    ResetPasswordByTokenDto,
+} from "@common/modules/auth/dto/forgot-password.dto";
 import { LoginDto } from "@common/modules/auth/dto/login.dto";
 import { RegisterDto } from "@common/modules/auth/dto/register.dto";
 import { SendSmsCodeDto, SmsLoginDto } from "@common/modules/auth/dto/sms.dto";
@@ -21,9 +26,12 @@ import { SmsService } from "@common/modules/sms/services/sms.service";
 import { WechatOaService } from "@common/modules/wechat/services/wechatoa.service";
 import { type LoginSettingsConfig } from "@modules/user/dto/login-settings.dto";
 import { Body, Get, Headers, Param, Post, Query, Req, Res } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 
 const OAUTH_SESSION_PREFIX = "oauth:session:";
+const PASSWORD_RESET_TOKEN_PREFIX = "auth:password-reset-token:";
+const PASSWORD_RESET_TOKEN_TTL_SECONDS = 10 * 60;
 
 /**
  * 用户认证控制器
@@ -325,6 +333,78 @@ export class AuthWebController extends BaseController {
         }
         await this.smsService.verifyCode(mobile, areaCode, code, SmsScene.LOGIN);
         return this.authService.loginBySms(mobile, areaCode, terminal, ipAddress, userAgent);
+    }
+
+    @Public()
+    @Post("password/forgot/sms/send-code")
+    async sendForgotPasswordSmsCode(@Body() dto: ForgotPasswordSendSmsCodeDto) {
+        await this.assertLoginMethodEnabled(LOGIN_TYPE.PHONE);
+        const areaCode = dto.areaCode || "86";
+        const user = await this.authService.findOne({
+            where: { phone: dto.mobile, phoneAreaCode: areaCode },
+        });
+
+        if (user) {
+            await this.smsService.sendCode(dto.mobile, areaCode, SmsScene.FIND_PASSWORD);
+        }
+
+        return "The verification code has been sent and is valid for 5 minutes";
+    }
+
+    @Public()
+    @Post("password/forgot/sms/verify-code")
+    async verifyForgotPasswordSmsCode(@Body() dto: ForgotPasswordVerifySmsCodeDto) {
+        await this.assertLoginMethodEnabled(LOGIN_TYPE.PHONE);
+        const areaCode = dto.areaCode || "86";
+        const user = await this.authService.findOne({
+            where: { phone: dto.mobile, phoneAreaCode: areaCode },
+        });
+
+        if (!user) {
+            throw HttpErrorFactory.badRequest("验证码错误或已失效");
+        }
+
+        await this.smsService.verifyCode(dto.mobile, areaCode, dto.code, SmsScene.FIND_PASSWORD);
+
+        const resetToken = randomUUID().replace(/-/g, "");
+        await this.cacheService.set(
+            `${PASSWORD_RESET_TOKEN_PREFIX}${resetToken}`,
+            {
+                userId: user.id,
+                mobile: dto.mobile,
+                areaCode,
+                scene: SmsScene.FIND_PASSWORD,
+            },
+            PASSWORD_RESET_TOKEN_TTL_SECONDS,
+        );
+
+        return {
+            resetToken,
+            expiresIn: PASSWORD_RESET_TOKEN_TTL_SECONDS,
+        };
+    }
+
+    @Public()
+    @Post("password/reset")
+    async resetPasswordByToken(@Body() dto: ResetPasswordByTokenDto) {
+        if (dto.newPassword !== dto.confirmPassword) {
+            throw HttpErrorFactory.badRequest(
+                "新密码与确认密码不一致",
+                BusinessCode.VALIDATION_FAILED,
+            );
+        }
+
+        const key = `${PASSWORD_RESET_TOKEN_PREFIX}${dto.resetToken}`;
+        const tokenPayload = await this.cacheService.get<{ userId: string }>(key);
+
+        if (!tokenPayload?.userId) {
+            throw HttpErrorFactory.badRequest("重置凭证已失效，请重新验证");
+        }
+
+        await this.authService.resetPassword(tokenPayload.userId, dto.newPassword);
+        await this.cacheService.del(key);
+
+        return null;
     }
 
     @Public()
