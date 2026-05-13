@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { PowerDetailDialog } from "./power-detail-dialog";
 import { RechargeDetailDialog } from "./recharge-detail-dialog";
+import { RechargeHistoryDialog } from "./recharge-history-dialog";
 
 function formatPrice(amount: number) {
   return `¥${Number(amount).toFixed(2)}`;
@@ -20,6 +21,7 @@ const WalletSetting = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedRule, setSelectedRule] = useState<RechargeRuleItem | null>(null);
   const [powerDetailOpen, setPowerDetailOpen] = useState(false);
+  const [rechargeHistoryOpen, setRechargeHistoryOpen] = useState(false);
 
   const rechargeRule = center?.rechargeRule ?? [];
   const payWayList = center?.payWayList ?? [];
@@ -41,7 +43,7 @@ const WalletSetting = () => {
             <span className="text-3xl leading-none font-bold">{userInfo?.power}</span>
           </span>
         </div>
-        <div className="mt-2 flex">
+        <div className="mt-2 flex gap-2">
           <Button
             size="xs"
             variant="ghost"
@@ -50,6 +52,15 @@ const WalletSetting = () => {
           >
             <Info />
             积分明细
+            <ChevronRight />
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            className="hover:bg-primary-foreground/15 text-primary-foreground hover:text-primary-foreground px-0 text-xs hover:px-1.5"
+            onClick={() => setRechargeHistoryOpen(true)}
+          >
+            充值记录
             <ChevronRight />
           </Button>
         </div>
@@ -103,6 +114,8 @@ const WalletSetting = () => {
       />
 
       <PowerDetailDialog open={powerDetailOpen} onOpenChange={setPowerDetailOpen} />
+
+      <RechargeHistoryDialog open={rechargeHistoryOpen} onOpenChange={setRechargeHistoryOpen} />
     </div>
   );
 };

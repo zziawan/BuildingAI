@@ -496,10 +496,24 @@ export class AiModelOpenApiController extends BaseController {
 
         await this.apiKeyService.updateLastUsed(apiKey.id);
 
-        const model = await this.aiModelService.findOne({
-            where: { id: modelId, isActive: true },
-            relations: ["provider"],
-        });
+        // 参考 LiteLLM model resolution：支持 "provider/modelName" 和 UUID 两种格式
+        let model: Awaited<ReturnType<typeof this.aiModelService.findOne>>;
+        if (modelId.includes("/")) {
+            // "provider/modelName" 格式，如 "unicloud/DeepSeek-R1-Distill-Qwen-14B"
+            const slashIdx = modelId.indexOf("/");
+            const providerKey = modelId.slice(0, slashIdx);
+            const modelName = modelId.slice(slashIdx + 1);
+            model = await this.aiModelService.findOne({
+                where: { model: modelName, isActive: true, provider: { provider: providerKey } } as any,
+                relations: ["provider"],
+            });
+        } else {
+            // UUID 格式
+            model = await this.aiModelService.findOne({
+                where: { id: modelId, isActive: true },
+                relations: ["provider"],
+            });
+        }
 
         if (!model) {
             throw HttpErrorFactory.notFound(`模型 ${modelId} 不存在或不可用`);
@@ -535,7 +549,7 @@ export class AiModelOpenApiController extends BaseController {
 
         const chatParams = {
             userId: apiKey.userId,
-            modelId: modelId,
+            modelId: model.id,  // 始终传 UUID，下游 ChatCompletionService 无需感知 provider/model 格式
             conversationId: undefined,
             messages: uiMessages,
             title: undefined,

@@ -205,11 +205,32 @@ function collectConventionRouteRoots(
 
 function generateConventionRoutes(menus: MenuItem[]): RouteObject[] {
   const routes: RouteObject[] = [];
+
+  // 1. Collect roots from menus (pages that have a component)
   const roots = collectConventionRouteRoots(menus);
+
+  // 2. Also discover section roots via _layouts/index.tsx files in the filesystem.
+  //    This ensures sub-pages are always registered even when the DB menu entry for the
+  //    root has no component (e.g. type-1 directory menu items).
+  const layoutFilePattern = /^\/src\/pages\/console\/([^/]+)\/_layouts\/index\.tsx$/;
+  for (const moduleKey of Object.keys(modules)) {
+    const m = layoutFilePattern.exec(moduleKey);
+    if (m) {
+      roots.add(m[1]);
+    }
+  }
 
   for (const rootPath of roots) {
     const rootPrefix = `/src/pages/console/${rootPath}/`;
     const rootIndexKey = `/src/pages/console/${rootPath}/index.tsx`;
+    const layoutKey = `/src/pages/console/${rootPath}/_layouts/index.tsx`;
+
+    // If this section has a _layouts/index.tsx, use it as a nested-route parent so that
+    // sub-pages are rendered inside the layout (sidebar + Outlet) instead of as flat pages.
+    const LayoutComponent = modules[layoutKey]?.default;
+
+    const nestedChildren: RouteObject[] = [];
+    const flatRoutes: RouteObject[] = [];
 
     for (const [moduleKey, mod] of Object.entries(modules)) {
       if (!moduleKey.startsWith(rootPrefix)) {
@@ -222,22 +243,40 @@ function generateConventionRoutes(menus: MenuItem[]): RouteObject[] {
         continue;
       }
       if (moduleKey.includes("/_")) {
+        // Skip internal dirs: _layouts, _components, _config, etc.
         continue;
       }
 
+      // Full route path relative to the console root, e.g. "operation/membership/level"
       const routePath = moduleKey
         .replace("/src/pages/console/", "")
         .replace("/index.tsx", "")
         .replace(/\/+/g, "/");
-      const Component = mod.default;
 
-      if (Component) {
-        routes.push({
-          path: routePath,
-          element: <Component />,
-        });
+      const Component = mod.default;
+      if (!Component) {
+        continue;
+      }
+
+      if (LayoutComponent) {
+        // Path relative to the section root, e.g. "membership/level"
+        const relPath = routePath.slice(rootPath.length + 1);
+        nestedChildren.push({ path: relPath, element: <Component /> });
+      } else {
+        flatRoutes.push({ path: routePath, element: <Component /> });
       }
     }
+
+    if (LayoutComponent && nestedChildren.length > 0) {
+      // Wildcard parent so that useParams()["*"] works inside OperationLayout
+      routes.push({
+        path: `${rootPath}/*`,
+        element: <LayoutComponent />,
+        children: nestedChildren,
+      });
+    }
+
+    routes.push(...flatRoutes);
   }
 
   return routes;

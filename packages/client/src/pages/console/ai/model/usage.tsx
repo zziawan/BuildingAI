@@ -82,6 +82,7 @@ const ModelUsagePage = () => {
     );
   }
 
+  const modelParam = `${model.provider?.provider}/${model.model}`;
   const configuredApiBaseUrl = getApiBaseUrl();
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const resolvedApiOrigin = (configuredApiBaseUrl || browserOrigin).replace(/\/+$/, "");
@@ -170,7 +171,26 @@ async function callModel() {
 
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) break;    // ai-model.controller.ts  chatWithModel 内
+    const modelParam = normalizedBody.model as string;
+    
+    // 支持 provider/model 格式，兼容 UUID
+    let model: AiModel | null;
+    if (modelParam.includes("/")) {
+      const [providerKey, modelName] = modelParam.split("/");
+      model = await this.aiModelService.findOne({
+        where: { model: modelName, isActive: true, provider: { provider: providerKey } },
+        relations: ["provider"],
+      });
+    } else {
+      model = await this.aiModelService.findOne({
+        where: { id: modelParam, isActive: true },
+        relations: ["provider"],
+      });
+    }
+    
+    // ... 后面的 chatParams.modelId 改为 model.id (UUID)
+    chatParams.modelId = model.id;
     console.log(decoder.decode(value));
   }
 }
@@ -266,12 +286,12 @@ callModel().catch(console.error);`
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-medium">model</TableCell>
-                  <TableCell className="font-mono text-sm break-all">{model.id}</TableCell>
+                  <TableCell className="font-mono text-sm break-all">{modelParam}</TableCell>
                   <TableCell>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleCopy(model.id, "model")}
+                      onClick={() => handleCopy(modelParam, "model")}
                     >
                       <Copy className="w-4 h-4 mr-2" />
                       {copiedParam === "model" ? "已复制" : "复制"}

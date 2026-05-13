@@ -1,5 +1,5 @@
 import { BooleanNumber } from "@buildingai/constants/shared/status-codes.constant";
-import type { MutationOptionsUtil, QueryOptionsUtil } from "@buildingai/web-types";
+import type { MutationOptionsUtil, PaginatedResponse, QueryOptionsUtil } from "@buildingai/web-types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { apiHttpClient } from "../base";
@@ -48,6 +48,33 @@ export type RechargePayResultResponse = {
     payStatus?: number;
     payState?: number;
 };
+
+export type RechargeListItem = {
+    id: string;
+    orderNo: string;
+    power: number;
+    givePower: number;
+    totalPower: number;
+    orderAmount: number;
+    payType: number;
+    payTypeDesc: string;
+    refundStatus: number;
+    createdAt: string;
+};
+
+export type RechargeListResponse = PaginatedResponse<RechargeListItem>;
+
+export function useRechargeListsQuery(
+    params?: { page?: number; pageSize?: number },
+    options?: QueryOptionsUtil<RechargeListResponse>,
+) {
+    return useQuery<RechargeListResponse>({
+        queryKey: ["recharge", "lists", params],
+        queryFn: () =>
+            apiHttpClient.get<RechargeListResponse>("/recharge/lists", { params }),
+        ...options,
+    });
+}
 
 export function useRechargeCenterQuery(options?: QueryOptionsUtil<RechargeCenterResponse>) {
     return useQuery<RechargeCenterResponse>({

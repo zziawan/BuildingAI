@@ -197,7 +197,7 @@ export class ApiKeyService {
     }
 
     private generateApiKey(): string {
-        return `bai_${randomBytes(24).toString("hex")}`;
+        return `sk-${randomBytes(18).toString("base64url")}`;
     }
 
     private hashApiKey(apiKey: string): string {
