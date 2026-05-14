@@ -1,5 +1,6 @@
 "use client";
 
+import { copyTextToClipboard } from "@buildingai/hooks";
 import { Badge } from "@buildingai/ui/components/ui/badge";
 import { Button } from "@buildingai/ui/components/ui/button";
 import { Switch } from "@buildingai/ui/components/ui/switch";
@@ -252,18 +253,13 @@ export const EnvironmentVariableCopyButton = ({
   }, [name, value, copyFormat]);
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
-      onError?.(new Error("Clipboard API not available"));
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(getTextToCopy());
+    const ok = await copyTextToClipboard(getTextToCopy());
+    if (ok) {
       setIsCopied(true);
       onCopy?.();
       timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
-    } catch (error) {
-      onError?.(error as Error);
+    } else {
+      onError?.(new Error("Failed to copy"));
     }
   }, [getTextToCopy, onCopy, onError, timeout]);
 

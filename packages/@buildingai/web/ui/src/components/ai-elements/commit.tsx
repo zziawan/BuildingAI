@@ -1,5 +1,6 @@
 "use client";
 
+import { copyTextToClipboard } from "@buildingai/hooks";
 import { Avatar, AvatarFallback } from "@buildingai/ui/components/ui/avatar";
 import { Button } from "@buildingai/ui/components/ui/button";
 import {
@@ -157,20 +158,15 @@ export const CommitCopyButton = ({
   const timeoutRef = useRef<number>(0);
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
-      onError?.(new Error("Clipboard API not available"));
-      return;
-    }
-
-    try {
-      if (!isCopied) {
-        await navigator.clipboard.writeText(hash);
+    if (!isCopied) {
+      const ok = await copyTextToClipboard(hash);
+      if (ok) {
         setIsCopied(true);
         onCopy?.();
         timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
+      } else {
+        onError?.(new Error("Failed to copy"));
       }
-    } catch (error) {
-      onError?.(error as Error);
     }
   }, [hash, onCopy, onError, timeout, isCopied]);
 

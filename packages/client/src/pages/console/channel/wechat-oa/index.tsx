@@ -1,3 +1,4 @@
+import { copyTextToClipboard } from "@buildingai/hooks";
 import {
   type UpdateWxOaConfigDto,
   useUpdateWxOaConfigMutation,
@@ -77,10 +78,10 @@ const WechatOAIndexPage = () => {
   }, [config]);
 
   const copyToClipboard = async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
+    const ok = await copyTextToClipboard(value);
+    if (ok) {
       toast.success("已复制");
-    } catch {
+    } else {
       toast.error("复制失败");
     }
   };

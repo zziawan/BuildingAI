@@ -1,5 +1,6 @@
 "use client";
 
+import { copyTextToClipboard } from "@buildingai/hooks";
 import { cn } from "@buildingai/ui/lib/utils";
 import { formatCodeBlock, isLangSupported } from "@platejs/code-block";
 import { BracesIcon, Check, CheckIcon, CopyIcon } from "lucide-react";
@@ -149,7 +150,7 @@ function CopyButton({
   return (
     <Button
       onClick={() => {
-        void navigator.clipboard.writeText(typeof value === "function" ? value() : value);
+        void copyTextToClipboard(typeof value === "function" ? value() : value);
         setHasCopied(true);
       }}
       {...props}

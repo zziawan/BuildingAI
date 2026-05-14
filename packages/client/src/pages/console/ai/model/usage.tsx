@@ -51,7 +51,26 @@ const ModelUsagePage = () => {
   };
 
   const handleCopy = (text: string, param: string) => {
-    navigator.clipboard.writeText(text);
+    const writeText = navigator?.clipboard?.writeText?.bind(navigator.clipboard);
+    const doWrite = writeText
+      ? writeText(text)
+      : Promise.reject(new Error("clipboard API unavailable"));
+
+    doWrite.catch(() => {
+      try {
+        const el = document.createElement("textarea");
+        el.value = text;
+        el.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+        document.body.appendChild(el);
+        el.focus();
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      } catch {
+        // ignore
+      }
+    });
+
     setCopiedParam(param);
     setTimeout(() => setCopiedParam(null), 2000);
   };
@@ -95,7 +114,7 @@ const ModelUsagePage = () => {
   -H "Content-Type: application/json; charset=utf-8" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -d '{
-    "model": "${model.id}",
+    "model": "${modelParam}",
     "messages": [
       {
         "role": "user",
@@ -117,7 +136,7 @@ headers = {
 }
 
 payload = {
-    "model": "${model.id}",
+    "model": "${modelParam}",
     "messages": [
         {
             "role": "user",
@@ -136,8 +155,8 @@ for line in response.iter_lines():
 
     nodejs: `const fetch = require('node-fetch');
 
-const baseURL = '${apiBaseUrl}';
-  const url = baseURL + '/chat/completions';
+const baseUrl = '${apiBaseUrl}';
+const url = baseUrl + '/chat/completions';
 
 const headers = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -145,7 +164,7 @@ const headers = {
 };
 
 const payload = {
-  model: '${model.id}',
+  model: '${modelParam}',
   messages: [
     {
       role: 'user',
@@ -166,32 +185,14 @@ async function callModel() {
     throw new Error('Request failed: ' + response.status + ' ' + response.statusText);
   }
 
-  const reader = response.body.getReader();
+  const reader = response.body?.getReader();
+  if (!reader) return;
   const decoder = new TextDecoder();
 
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;    // ai-model.controller.ts  chatWithModel 内
-    const modelParam = normalizedBody.model as string;
-    
-    // 支持 provider/model 格式，兼容 UUID
-    let model: AiModel | null;
-    if (modelParam.includes("/")) {
-      const [providerKey, modelName] = modelParam.split("/");
-      model = await this.aiModelService.findOne({
-        where: { model: modelName, isActive: true, provider: { provider: providerKey } },
-        relations: ["provider"],
-      });
-    } else {
-      model = await this.aiModelService.findOne({
-        where: { id: modelParam, isActive: true },
-        relations: ["provider"],
-      });
-    }
-    
-    // ... 后面的 chatParams.modelId 改为 model.id (UUID)
-    chatParams.modelId = model.id;
-    console.log(decoder.decode(value));
+    if (done) break;
+    process.stdout.write(decoder.decode(value));
   }
 }
 

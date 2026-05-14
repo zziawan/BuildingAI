@@ -1,3 +1,4 @@
+import { copyTextToClipboard } from "@buildingai/hooks";
 import { useAgentDetailQuery, useUpdatePublishConfigMutation } from "@buildingai/services/web";
 import { Badge } from "@buildingai/ui/components/ui/badge";
 import { Card, CardContent } from "@buildingai/ui/components/ui/card";
@@ -232,10 +233,10 @@ export default function Publish() {
       return;
     }
 
-    try {
-      await navigator.clipboard.writeText(value);
+    const ok = await copyTextToClipboard(value);
+    if (ok) {
       toast.success(successMessage);
-    } catch {
+    } else {
       toast.error("复制失败");
     }
   }, []);

@@ -1,5 +1,6 @@
 "use client";
 
+import { copyTextToClipboard } from "@buildingai/hooks";
 import { cn } from "@buildingai/ui/lib/utils";
 import type { VariantProps } from "class-variance-authority";
 import { Copy, CopyCheck } from "lucide-react";
@@ -45,19 +46,18 @@ function CopyButton({
   const handleCopy = React.useCallback(async () => {
     if (!value) return;
 
-    try {
-      await navigator.clipboard.writeText(value);
+    const ok = await copyTextToClipboard(value);
+    if (ok) {
       setIsCopied(true);
       onCopy?.(value);
-
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
       timeoutRef.current = setTimeout(() => {
         setIsCopied(false);
       }, timeout);
-    } catch (error) {
-      onCopyError?.(error instanceof Error ? error : new Error("Failed to copy"));
+    } else {
+      onCopyError?.(new Error("Failed to copy"));
     }
   }, [value, timeout, onCopy, onCopyError]);
 

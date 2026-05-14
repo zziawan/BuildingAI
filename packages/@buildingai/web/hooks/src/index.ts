@@ -1,4 +1,4 @@
-export { useCopy } from "./use-copy";
+export * from "./use-copy";
 export * from "./use-document-head";
 export * from "./use-head-renderer";
 export * from "./use-inbox-heartbeat";

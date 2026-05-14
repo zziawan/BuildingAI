@@ -1,5 +1,6 @@
 "use client";
 
+import { copyTextToClipboard } from "@buildingai/hooks";
 import { Button } from "@buildingai/ui/components/ui/button";
 import {
   Collapsible,
@@ -306,18 +307,13 @@ export const StackTraceCopyButton = memo(
     const { raw } = useStackTrace();
 
     const copyToClipboard = useCallback(async () => {
-      if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
-        onError?.(new Error("Clipboard API not available"));
-        return;
-      }
-
-      try {
-        await navigator.clipboard.writeText(raw);
+      const ok = await copyTextToClipboard(raw);
+      if (ok) {
         setIsCopied(true);
         onCopy?.();
         timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
-      } catch (error) {
-        onError?.(error as Error);
+      } else {
+        onError?.(new Error("Failed to copy"));
       }
     }, [raw, onCopy, onError, timeout]);
 

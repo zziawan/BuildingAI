@@ -1,5 +1,6 @@
 "use client";
 
+import { copyTextToClipboard } from "@buildingai/hooks";
 import {
   InputGroup,
   InputGroupAddon,
@@ -76,20 +77,15 @@ export const SnippetCopyButton = ({
   const { code } = useContext(SnippetContext);
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
-      onError?.(new Error("Clipboard API not available"));
-      return;
-    }
-
-    try {
-      if (!isCopied) {
-        await navigator.clipboard.writeText(code);
+    if (!isCopied) {
+      const ok = await copyTextToClipboard(code);
+      if (ok) {
         setIsCopied(true);
         onCopy?.();
         timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
+      } else {
+        onError?.(new Error("Failed to copy"));
       }
-    } catch (error) {
-      onError?.(error as Error);
     }
   }, [code, onCopy, onError, timeout, isCopied]);
 

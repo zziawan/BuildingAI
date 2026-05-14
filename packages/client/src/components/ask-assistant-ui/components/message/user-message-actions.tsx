@@ -1,3 +1,4 @@
+import { copyTextToClipboard } from "@buildingai/hooks";
 import { MessageContent as AIMessageContent } from "@buildingai/ui/components/ai-elements/message";
 import {
   MessageAction as AIMessageAction,
@@ -70,7 +71,7 @@ export const UserMessageActions = memo(function UserMessageActions({
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(content);
+    void copyTextToClipboard(content);
   };
 
   if (isEditing) {

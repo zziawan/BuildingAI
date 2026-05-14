@@ -2,6 +2,35 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 /**
+ * 安全地将文本复制到剪贴板。
+ * 优先使用 Clipboard API（HTTPS / localhost），不可用时降级为 execCommand。
+ */
+export async function copyTextToClipboard(text: string): Promise<boolean> {
+    if (navigator?.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch {
+            // fall through to execCommand
+        }
+    }
+    // execCommand fallback（HTTP 远程环境）
+    try {
+        const el = document.createElement("textarea");
+        el.value = text;
+        el.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+        document.body.appendChild(el);
+        el.focus();
+        el.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(el);
+        return ok;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Copy text to clipboard hook
  *
  * @returns Object with copy function and loading state
@@ -25,42 +54,14 @@ export function useCopy() {
         }
 
         setIsCopying(true);
-
         try {
-            await navigator.clipboard.writeText(text);
-            toast.success("Copied to clipboard");
-            return true;
-        } catch (error) {
-            // Fallback for older browsers
-            console.error(
-                "Failed to copy to clipboard using navigator.clipboard.writeText:",
-                error,
-                "Fallback to execCommand",
-            );
-            try {
-                const textArea = document.createElement("textarea");
-                textArea.value = text;
-                textArea.style.position = "fixed";
-                textArea.style.left = "-999999px";
-                textArea.style.top = "-999999px";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-
-                const result = document.execCommand("copy");
-                document.body.removeChild(textArea);
-
-                if (result) {
-                    toast.success("Copied to clipboard");
-                    return true;
-                } else {
-                    toast.error("Failed to copy");
-                    return false;
-                }
-            } catch (fallbackError) {
-                toast.error(`Failed to copy: ${fallbackError}`);
-                return false;
+            const ok = await copyTextToClipboard(text);
+            if (ok) {
+                toast.success("Copied to clipboard");
+            } else {
+                toast.error("Failed to copy");
             }
+            return ok;
         } finally {
             setIsCopying(false);
         }

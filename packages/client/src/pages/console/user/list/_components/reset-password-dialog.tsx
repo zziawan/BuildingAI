@@ -1,3 +1,4 @@
+import { copyTextToClipboard } from "@buildingai/hooks";
 import {
   useResetPasswordAutoMutation,
   useResetPasswordMutation,
@@ -139,10 +140,10 @@ export const ResetPasswordDialog = ({
       toast.error("请先生成或输入密码");
       return;
     }
-    try {
-      await navigator.clipboard.writeText(password);
+    const ok = await copyTextToClipboard(password);
+    if (ok) {
       toast.success("密码已复制到剪贴板");
-    } catch {
+    } else {
       toast.error("复制失败");
     }
   };

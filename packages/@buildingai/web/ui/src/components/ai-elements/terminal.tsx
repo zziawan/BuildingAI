@@ -1,5 +1,6 @@
 "use client";
 
+import { copyTextToClipboard } from "@buildingai/hooks";
 import { Button } from "@buildingai/ui/components/ui/button";
 import { cn } from "@buildingai/ui/lib/utils";
 import Ansi from "ansi-to-react";
@@ -146,18 +147,13 @@ export const TerminalCopyButton = ({
   const { output } = useContext(TerminalContext);
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
-      onError?.(new Error("Clipboard API not available"));
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(output);
+    const ok = await copyTextToClipboard(output);
+    if (ok) {
       setIsCopied(true);
       onCopy?.();
       timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout);
-    } catch (error) {
-      onError?.(error as Error);
+    } else {
+      onError?.(new Error("Failed to copy"));
     }
   }, [output, onCopy, onError, timeout]);
 
