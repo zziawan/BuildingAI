@@ -33,6 +33,7 @@ import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { z } from "zod";
 
 import { AgreementDialog, type AgreementType } from "@/components/agreement-dialog";
@@ -243,28 +244,40 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
   const onMainLoginSubmit = async (values: MainLoginFormValues) => {
     const agreed = await ensureAgreed();
     if (!agreed) return;
-    const data = await login({
-      username: values.account.trim(),
-      password: values.password,
-      terminal: 1,
-    });
-    setToken(data.token);
-    handleRedirect(redirect || "/", data.token);
+    
+    try {
+      const data = await login({
+        username: values.account.trim(),
+        password: values.password,
+        terminal: 1,
+      });
+      setToken(data.token);
+      handleRedirect(redirect || "/", data.token);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "登录失败，请检查用户名和密码";
+      toast.error(message);
+    }
   };
 
   const onRegisterSubmit = async (values: RegisterFormValues) => {
     const agreed = await ensureAgreed();
     if (!agreed) return;
-    const data = await register({
-      username: values.username,
-      password: values.password,
-      confirmPassword: values.confirmPassword,
-      terminal: 1,
-      ...(values.nickname && { nickname: values.nickname }),
-      ...(values.email && { email: values.email }),
-    });
-    setToken(data.token);
-    handleRedirect(redirect || "/", data.token);
+    
+    try {
+      const data = await register({
+        username: values.username,
+        password: values.password,
+        confirmPassword: values.confirmPassword,
+        terminal: 1,
+        ...(values.nickname && { nickname: values.nickname }),
+        ...(values.email && { email: values.email }),
+      });
+      setToken(data.token);
+      handleRedirect(redirect || "/", data.token);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "注册失败，请稍后重试";
+      toast.error(message);
+    }
   };
 
   const renderMainStep = () => (

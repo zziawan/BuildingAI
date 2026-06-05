@@ -12,8 +12,7 @@ import { Skeleton } from "@buildingai/ui/components/ui/skeleton";
 import { AlertCircle, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-
-import { LoginLayout } from "./_components/login-layout";
+import { toast } from "sonner";
 
 /**
  * 微信扫码登录（独立页，复用原弹窗内逻辑）
@@ -78,8 +77,10 @@ const LoginWechatPage = () => {
       const data = await getWechatQrcode();
       setWechatQrUrl(data.url);
       setWechatQrKey(data.key ?? "");
-    } catch {
+    } catch (error) {
       setWechatStatus("code_error");
+      const message = error instanceof Error ? error.message : "获取二维码失败，请重试";
+      toast.error(message);
     } finally {
       setWechatLoading(false);
     }

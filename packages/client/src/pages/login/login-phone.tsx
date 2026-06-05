@@ -28,6 +28,7 @@ import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { z } from "zod";
 
 import { LoginLayout } from "./_components/login-layout";
@@ -121,14 +122,20 @@ const LoginPhonePage = () => {
 
   const onCodeSubmit = async (values: LoginFormValues) => {
     const mobile = form.getValues("mobile");
-    const data = await smsLogin({
-      mobile,
-      code: values.code,
-      terminal: 1,
-      areaCode: "86",
-    });
-    setToken(data.token);
-    handleRedirect(redirect || "/", data.token);
+    
+    try {
+      const data = await smsLogin({
+        mobile,
+        code: values.code,
+        terminal: 1,
+        areaCode: "86",
+      });
+      setToken(data.token);
+      handleRedirect(redirect || "/", data.token);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "登录失败，请检查验证码是否正确";
+      toast.error(message);
+    }
   };
 
   const backLink = redirect
