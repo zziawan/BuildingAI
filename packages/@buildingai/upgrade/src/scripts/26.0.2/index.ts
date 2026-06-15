@@ -66,10 +66,10 @@ const USER_API_KEY_MENU_DEFAULT: MenuItem = {
     isHidden: false,
     link: {
         label: "用户API-Key",
-        path: "/modelapi",
+        path: "/apikey",
         type: "system",
         query: {},
-        component: "/src/pages/modelapi/index.tsx",
+        component: "/src/pages/api-key/index.tsx",
         target: "_self",
     },
 };

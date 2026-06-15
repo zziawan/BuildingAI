@@ -19,9 +19,9 @@ import DatasetsIndexPage from "@/pages/datasets";
 import DatasetsLayout from "@/pages/datasets/_layouts";
 import DatasetsDetailPage from "@/pages/datasets/detail";
 import InstallPage from "@/pages/install";
-import ModelIndexPage from "@/pages/console/ai/model";
-import ModelUsagePage from "@/pages/console/ai/model/usage";
-import ModelApiPage from "@/pages/modelapi";
+import ModelIndexPage from "@/pages/models";
+import ModelUsagePage from "@/pages/models/usage";
+import ApiKeyIndexPage from "@/pages/api-key";
 
 import ConsoleLayout from "../layouts/console";
 import DynamicHomePage from "../pages";
@@ -226,10 +226,10 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: "/modelapi",
+            path: "/apikey",
             element: (
               <AuthGuard>
-                <ModelApiPage />
+                <ApiKeyIndexPage />
               </AuthGuard>
             ),
           },
@@ -260,4 +260,5 @@ export const router = createBrowserRouter([
       },
     ],
   },
+
 ]);

@@ -1,7 +1,7 @@
 {
-    "watch": ["../../extensions/*/build/**"],
+    "watch": ["../../extensions/simple-blog/build/**"],
     "ext": "ts,js",
-    "ignore": ["src/**/*.spec.ts", "node_modules", ".turbo"],
+    "ignore": ["src/**/*.spec.ts", "node_modules", ".turbo", "**/node_modules/**", "**/*.spec.ts"],
     "exec": "nest start --watch -b swc",
     "delay": 500
 }

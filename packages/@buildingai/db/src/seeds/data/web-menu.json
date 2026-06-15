@@ -22,7 +22,7 @@
                 "path": "/model",
                 "type": "system",
                 "query": {},
-                "component": "/src/pages/console/ai/model/index.tsx",
+                "component": "/src/pages/models/index.tsx",
                 "target": "_self"
             }
         },
@@ -32,10 +32,10 @@
             "title": "用户API-Key",
             "link": {
                 "label": "用户API-Key",
-                "path": "/modelapi",
+                "path": "/apikey",
                 "type": "system",
                 "query": {},
-                "component": "/src/pages/modelapi/index.tsx",
+                "component": "/src/pages/api-key/index.tsx",
                 "target": "_self"
             }
         },

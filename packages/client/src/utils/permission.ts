@@ -5,7 +5,7 @@ import type { MenuItem } from "@buildingai/web-types";
  */
 export const WEB_HOME_PATH = "/";
 
-const RESTRICTED_ROOT_CODES = new Set(["workspace", "system-manage"]);
+const RESTRICTED_ROOT_CODES = new Set(["workspace"]);
 const RESTRICTED_BRANCH_PUBLIC_CODES = new Set(["api-key"]);
 
 function hasMenuPermission(menu: MenuItem, userInfo?: any, inRestrictedBranch = false): boolean {

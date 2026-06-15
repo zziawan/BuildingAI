@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "redjue.git-commit-plugin"
+        "redjue.git-commit-plugin",
+        "marscode.marscode-extension"
     ]
 }
