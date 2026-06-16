@@ -12,6 +12,9 @@ import { HttpErrorFactory } from "@buildingai/errors";
 import type { UIMessage } from "ai";
 import { generateId } from "ai";
 import { TextDecoder } from "node:util";
+import { InjectRepository } from "@nestjs/typeorm";
+import { UserSubscription } from "@buildingai/db/entities";
+import { Repository } from "typeorm";
 
 const GB18030_DECODER = new TextDecoder("gb18030");
 
@@ -433,6 +436,158 @@ export class AiModelWebController extends BaseController {
 
         return null;
     }
+}
+
+/**
+ * 将 AiModel 实体转换为 OpenAI 兼容的 model 对象
+ *
+ * id 使用 "provider/modelName" 格式（LiteLLM 风格），与 POST /v1/chat/completions 的
+ * model 参数解析逻辑保持一致，确保从 GET /v1/models 拿到的 id 能直接用于 chat 调用。
+ * 跨 provider 同名模型（如 openai/gpt-4 和 openrouter/gpt-4）也能精确定位。
+ *
+ * 额外提供 root 字段（纯 model 名）以兼容 OpenAI 原生客户端。
+ */
+function toOpenAIModelObject(model: any) {
+    const providerKey = model.provider?.provider || "custom";
+    return {
+        id: `${providerKey}/${model.model}`,       // LiteLLM 风格 id，可直接用于 chat/completions
+        object: "model",
+        created: model.createdAt
+            ? Math.floor(new Date(model.createdAt).getTime() / 1000)
+            : undefined,
+        owned_by: model.provider?.name || providerKey,
+        root: model.model,                         // 纯 model 名（如 "gpt-4"），供 OpenAI 原生客户端参考
+    };
+}
+
+@OpenApiController()
+
+export class modelsOpenApiController extends BaseController {
+    constructor(
+        private readonly aiModelService: AiModelService,
+        private readonly apiKeyService: ApiKeyService,
+        @InjectRepository(UserSubscription)
+        private readonly userSubscriptionRepository: Repository<UserSubscription>,
+    ) {
+        super();
+    }
+
+    /**
+     * 从请求中提取 API Key 并获取对应的 userId
+     * 如果未提供 API Key 或 Key 无效，返回 null（降级为返回所有激活模型）
+     */
+    private async resolveUserIdFromApiKey(req: Request): Promise<string | null> {
+        const authorization = req.headers.authorization;
+        const apiKeyToken =
+            typeof authorization === "string" && authorization.startsWith("Bearer ")
+                ? authorization.slice(7).trim()
+                : null;
+
+        if (!apiKeyToken) return null;
+
+        const apiKey = await this.apiKeyService.findByKey(apiKeyToken);
+        return apiKey?.userId ?? null;
+    }
+
+    /**
+     * 获取用户当前未过期的会员等级 ID 列表
+     */
+    private async getUserLevelIds(userId: string): Promise<string[]> {
+        const now = new Date();
+        const subscriptions = await this.userSubscriptionRepository.find({
+            where: { userId },
+            select: ["levelId", "endTime"],
+        });
+
+        return subscriptions
+            .filter((sub) => sub.endTime > now && sub.levelId)
+            .map((sub) => sub.levelId);
+    }
+
+    /**
+     * 获取可用模型列表（OpenAI 兼容格式）
+     * @route GET /v1/models
+     * @description 通过 API Key 识别用户，只返回用户有权限的模型。
+     *  若未提供 API Key，降级返回所有激活模型。
+     */
+    @Public()
+    @Get("models")
+    async getAvailableModels(@Req() req: Request) {
+        const models = await this.aiModelService.getAvailableModels();
+
+        const userId = await this.resolveUserIdFromApiKey(req);
+        if (!userId) {
+            // 未提供有效 API Key，降级返回所有激活模型
+            const data = models.map(toOpenAIModelObject);
+            return { object: "list", data };
+        }
+
+        const userLevelIds = await this.getUserLevelIds(userId);
+
+        // 过滤出用户有权限的模型：
+        // 1. 模型未设置会员等级限制（membershipLevel 为空），则所有用户可用
+        // 2. 模型的会员等级与用户等级有交集，则该用户可用
+        // 3. 用户无任何有效会员等级时，只能看到未设置等级限制的模型
+        const filteredModels = models.filter((model) => {
+
+            if (!model.isActive || !model.provider?.isActive)  return false;
+            
+            const modelLevels: string[] = model.membershipLevel || [];
+            // 未设置任何等级限制 → 所有用户可用
+            if (modelLevels.length === 0) return true;
+            // 用户无等级 → 该模型不可用
+            if (userLevelIds.length === 0) return false;
+            // 用户等级与模型等级有交集 → 可用
+            return modelLevels.some((levelId) => userLevelIds.includes(levelId));
+        });
+
+        const data = filteredModels.map(toOpenAIModelObject);
+        return { object: "list", data };
+    }
+
+    /**
+     * 获取单个模型信息（OpenAI 兼容格式）
+     * @route GET /v1/models/:model
+     * @description 支持两种格式：
+     *   - provider/modelName（如 "openai/gpt-4"），从 GET /v1/models 列表返回的 id 直接传入
+     *   - UUID（如 "550e8400-e29b-41d4-a716-446655440000"）
+     *
+     * 使用通配符 * 匹配含 "/" 的 model id（如 unicloud/Qwen3.6-35B-A3B），
+     * 并从 req.path 中手动提取 model 参数。
+     */
+    @Public()
+    @Get("models/*")
+    async getModelInfo(@Req() req: Request) {
+        // 从请求路径中提取 model 参数：/v1/models/xxx → "xxx"
+        const model = req.path.replace(/^\/v1\/models\//, "");
+        let result: Awaited<ReturnType<typeof this.aiModelService.findOne>>;
+
+        if (model.includes("/")) {
+            // "provider/modelName" 格式
+            const slashIdx = model.indexOf("/");
+            const providerKey = model.slice(0, slashIdx);
+            const modelName = model.slice(slashIdx + 1);
+            result = await this.aiModelService.findOne({
+                where: { model: modelName, isActive: true, provider: { provider: providerKey } } as any,
+                relations: ["provider"],
+                excludeFields: ["apiKey"],
+            });
+        } else {
+            // UUID 格式
+            result = await this.aiModelService.findOne({
+                where: { id: model, isActive: true },
+                relations: ["provider"],
+                excludeFields: ["apiKey"],
+            });
+        }
+
+        if (!result) {
+            throw HttpErrorFactory.notFound(`模型 ${model} 不存在或不可用`);
+        }
+
+        return toOpenAIModelObject(result);
+    }
+
 }
 
 @OpenApiController("chat")

@@ -101,14 +101,18 @@ const ModelUsagePage = () => {
     );
   }
 
+  // model 参数：使用 provider/modelName 格式（LiteLLM 风格）
+  // 与 GET /v1/models 返回的 id 字段一致，可直接用于 POST /v1/chat/completions
+  // 跨 provider 同名模型（如 openai/gpt-4 和 openrouter/gpt-4）也能精确定位
   const modelParam = `${model.provider?.provider}/${model.model}`;
+  const modelParamRoot = model.model;
   const configuredApiBaseUrl = getApiBaseUrl();
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const resolvedApiOrigin = (configuredApiBaseUrl || browserOrigin).replace(/\/+$/, "");
   const apiBaseUrl = `${resolvedApiOrigin}/v1`;
   const endpointUrl = `${apiBaseUrl}/chat/completions`;
-  
-  // 生成代码示例
+
+  // 生成代码示例（默认使用 provider/modelName 格式以精确定位模型）
   const codeExamples = {
     curl: `curl -X POST "${endpointUrl}" \\
   -H "Content-Type: application/json; charset=utf-8" \\
@@ -287,16 +291,23 @@ callModel().catch(console.error);`
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-medium">model</TableCell>
-                  <TableCell className="font-mono text-sm break-all">{modelParam}</TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCopy(modelParam, "model")}
-                    >
-                      <Copy className="w-4 h-4 mr-2" />
-                      {copiedParam === "model" ? "已复制" : "复制"}
-                    </Button>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm break-all">{modelParam}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopy(modelParam, "model")}
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          {copiedParam === "model" ? "已复制" : "复制"}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        格式：<code className="text-xs bg-muted px-1 rounded">provider/modelName</code>（LiteLLM 风格）。此 id 与 <code className="text-xs bg-muted px-1 rounded">GET /v1/models</code> 返回的 id 一致，可直接用于 chat 调用。模型原名：<code className="text-xs bg-muted px-1 rounded">{modelParamRoot}</code>。
+                      </p>
+                    </div>
                   </TableCell>
                 </TableRow>
                 <TableRow>

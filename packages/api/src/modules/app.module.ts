@@ -84,6 +84,7 @@ export class AppModule {
                         ...extensionsList.map((extension) => `/${extension.name}`),
                         process.env.VITE_APP_WEB_API_PREFIX,
                         process.env.VITE_APP_CONSOLE_API_PREFIX,
+                        "/v1{/*path}",
                     ],
                 }),
                 ConfigModule.forRoot({
