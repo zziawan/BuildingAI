@@ -384,7 +384,7 @@ function extractLooseTextFromLine(line: string): string {
  *
  * 提供AI模型信息查询和调用功能
  */
-@WebController("ai-models")
+@WebController("ai-models-1")
 export class AiModelWebController extends BaseController {
     constructor(
         private readonly aiModelService: AiModelService,
@@ -511,7 +511,7 @@ export class modelsOpenApiController extends BaseController {
      *  若未提供 API Key，降级返回所有激活模型。
      */
     @Public()
-    @Get("models")
+    @Get("models1")
     async getAvailableModels(@Req() req: Request) {
         const models = await this.aiModelService.getAvailableModels();
 
@@ -556,7 +556,7 @@ export class modelsOpenApiController extends BaseController {
      * 并从 req.path 中手动提取 model 参数。
      */
     @Public()
-    @Get("models/*")
+    @Get("models1/*")
     async getModelInfo(@Req() req: Request) {
         // 从请求路径中提取 model 参数：/v1/models/xxx → "xxx"
         const model = req.path.replace(/^\/v1\/models\//, "");
@@ -590,7 +590,7 @@ export class modelsOpenApiController extends BaseController {
 
 }
 
-@OpenApiController("chat")
+@OpenApiController("chat1")
 export class AiModelOpenApiController extends BaseController {
     constructor(
         private readonly aiModelService: AiModelService,
@@ -605,7 +605,7 @@ export class AiModelOpenApiController extends BaseController {
      * @route POST /v1/chat/completions
      */
     @Public()
-    @Post("completions")
+    @Post("completions1")
     async chatWithModel(
         @Body() body: any,
         @Res() res: Response,

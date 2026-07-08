@@ -57,6 +57,7 @@ export {
 } from "./secret-template.entity";
 export { StorageConfig } from "./storage-config.entity";
 export { Tag } from "./tag.entity";
+export { TokenUsage } from "./token-usage.entity";
 export { User } from "./user.entity";
 export { UserDict } from "./user-dict.entity";
 export { UserSubscription } from "./user-subscription.entity";
