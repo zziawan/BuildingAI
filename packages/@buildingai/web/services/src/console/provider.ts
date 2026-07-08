@@ -54,8 +54,12 @@ export type ModelConfig = {
 };
 
 export type BillingRule = {
-    power: number;
-    tokens: number;
+    power?: number;
+    inputPower?: number;
+    outputPower?: number;
+    cachePower?: number;
+    tokens?: number;
+    imagePower?: number;
 };
 
 export type AiProvider = {

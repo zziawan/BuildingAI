@@ -3,7 +3,7 @@ import {
   MODEL_FEATURES,
   type ModelFeatureType,
 } from "@buildingai/ai-sdk/interfaces";
-import { MODEL_TYPE_DESCRIPTIONS, type ModelType } from "@buildingai/ai-sdk/interfaces";
+import { MODEL_TYPE_DESCRIPTIONS, MODEL_TYPES, type ModelType } from "@buildingai/ai-sdk/interfaces";
 import {
   type AiProviderModel,
   type AiProviderRemoteModelItem,
@@ -81,7 +81,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-const MODEL_TYPES = Object.keys(MODEL_TYPE_DESCRIPTIONS) as ModelType[];
+const MODEL_TYPE_KEYS = Object.keys(MODEL_TYPE_DESCRIPTIONS) as ModelType[];
 const FEATURE_TYPES = Object.values(MODEL_FEATURES);
 
 const FEATURE_ICON_MAP: Record<string, React.ElementType> = {
@@ -97,8 +97,11 @@ const FEATURE_ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const billingRuleSchema = z.object({
-  power: z.number().int().min(0, "power 不能小于 0").default(0),
-  tokens: z.number().int().default(1000),
+  inputPower: z.number().int().min(0, "输入价格不能小于 0").optional(),
+  outputPower: z.number().int().min(0, "输出价格不能小于 0").optional(),
+  cachePower: z.number().int().min(0, "缓存价格不能小于 0").optional(),
+  tokens: z.number().int().default(1000).optional(),
+  imagePower: z.number().int().min(0, "图片生成价格不能小于 0").optional(),
 });
 
 const formSchema = z.object({
@@ -163,7 +166,7 @@ export const AiModelFormDialog = ({
       modelType: "llm",
       maxContext: 3,
       features: [],
-      billingRule: { power: undefined, tokens: 1000 },
+      billingRule: { inputPower: undefined, outputPower: undefined, cachePower: undefined, tokens: 1000 },
       membershipLevel: [],
       isActive: true,
       thinking: false,
@@ -174,6 +177,9 @@ export const AiModelFormDialog = ({
     },
   });
 
+  const watchedModelType = form.watch("modelType");
+  const isTextToImage = watchedModelType === MODEL_TYPES.TEXT_TO_IMAGE;
+
   useEffect(() => {
     if (open) {
       if (model) {
@@ -183,7 +189,13 @@ export const AiModelFormDialog = ({
           modelType: model.modelType,
           maxContext: model.maxContext,
           features: model.features || [],
-          billingRule: { power: model.billingRule?.power || undefined, tokens: 1000 },
+          billingRule: {
+            inputPower: (model.billingRule as any)?.inputPower ?? model.billingRule?.power ?? undefined,
+            outputPower: (model.billingRule as any)?.outputPower ?? model.billingRule?.power ?? undefined,
+            cachePower: (model.billingRule as any)?.cachePower ?? 0,
+            tokens: model.billingRule?.tokens ?? 1000,
+            imagePower: (model.billingRule as any)?.imagePower ?? undefined,
+          },
           membershipLevel: model.membershipLevel || [],
           isActive: model.isActive,
           thinking: model.thinking || false,
@@ -199,7 +211,7 @@ export const AiModelFormDialog = ({
           modelType: "llm",
           maxContext: 3,
           features: [],
-          billingRule: { power: undefined, tokens: 1000 },
+          billingRule: { inputPower: undefined, outputPower: undefined, cachePower: undefined, tokens: 1000 },
           membershipLevel: [],
           isActive: true,
           thinking: false,
@@ -357,7 +369,7 @@ export const AiModelFormDialog = ({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {MODEL_TYPES.map((type) => (
+                        {MODEL_TYPE_KEYS.map((type) => (
                           <SelectItem key={type} value={type}>
                             {MODEL_TYPE_DESCRIPTIONS[type].nameEn}
                             <span className="text-muted-foreground ml-1 text-xs">
@@ -391,37 +403,136 @@ export const AiModelFormDialog = ({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="billingRule.power"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>计费规则</FormLabel>
-                    <FormControl>
-                      <InputGroup>
-                        <InputGroupInput
-                          type="number"
-                          min={0}
-                          placeholder="请输入模型计费"
-                          className="pl-3!"
-                          value={field.value ?? ""}
-                          onBlur={field.onBlur}
-                          ref={field.ref}
-                          onChange={(e) =>
-                            field.onChange(
-                              e.target.value === "" ? undefined : Number(e.target.value),
-                            )
-                          }
-                        />
-                        <InputGroupAddon align="inline-end">
-                          <InputGroupText>积分 / 1000 Tokens</InputGroupText>
-                        </InputGroupAddon>
-                      </InputGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {isTextToImage ? (
+                <FormField
+                  control={form.control}
+                  name="billingRule.imagePower"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>计费规则</FormLabel>
+                      <FormControl>
+                        <InputGroup>
+                          <InputGroupInput
+                            type="number"
+                            min={0}
+                            placeholder="图片生成价格"
+                            className="pl-3!"
+                            value={field.value ?? ""}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === "" ? undefined : Number(e.target.value),
+                              )
+                            }
+                          />
+                          <InputGroupAddon align="inline-end">
+                            <InputGroupText>积分 / 张</InputGroupText>
+                          </InputGroupAddon>
+                        </InputGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <div className="space-y-3">
+                  <FormLabel>计费规则</FormLabel>
+                  <FormField
+                    control={form.control}
+                    name="billingRule.inputPower"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-muted-foreground text-xs font-normal">输入价格</FormLabel>
+                        <FormControl>
+                          <InputGroup>
+                            <InputGroupInput
+                              type="number"
+                              min={0}
+                              placeholder="输入价格"
+                              className="pl-3!"
+                              value={field.value ?? ""}
+                              onBlur={field.onBlur}
+                              ref={field.ref}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.value === "" ? undefined : Number(e.target.value),
+                                )
+                              }
+                            />
+                            <InputGroupAddon align="inline-end">
+                              <InputGroupText>积分 / 1000 Tokens</InputGroupText>
+                            </InputGroupAddon>
+                          </InputGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="billingRule.outputPower"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-muted-foreground text-xs font-normal">输出价格</FormLabel>
+                        <FormControl>
+                          <InputGroup>
+                            <InputGroupInput
+                              type="number"
+                              min={0}
+                              placeholder="输出价格"
+                              className="pl-3!"
+                              value={field.value ?? ""}
+                              onBlur={field.onBlur}
+                              ref={field.ref}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.value === "" ? undefined : Number(e.target.value),
+                                )
+                              }
+                            />
+                            <InputGroupAddon align="inline-end">
+                              <InputGroupText>积分 / 1000 Tokens</InputGroupText>
+                            </InputGroupAddon>
+                          </InputGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="billingRule.cachePower"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-muted-foreground text-xs font-normal">缓存价格</FormLabel>
+                        <FormControl>
+                          <InputGroup>
+                            <InputGroupInput
+                              type="number"
+                              min={0}
+                              placeholder="缓存价格"
+                              className="pl-3!"
+                              value={field.value ?? ""}
+                              onBlur={field.onBlur}
+                              ref={field.ref}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.value === "" ? undefined : Number(e.target.value),
+                                )
+                              }
+                            />
+                            <InputGroupAddon align="inline-end">
+                              <InputGroupText>积分 / 1000 Tokens</InputGroupText>
+                            </InputGroupAddon>
+                          </InputGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
 
               <FormField
                 control={form.control}

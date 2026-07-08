@@ -16,13 +16,35 @@ import {
 } from "class-validator";
 
 class BillingRuleDto {
+    @IsOptional()
     @IsInt({ message: "power 必须是整数" })
     @Min(0, { message: "power 不能小于 0" })
-    power: number;
+    power?: number;
 
+    @IsOptional()
+    @IsInt({ message: "inputPower 必须是整数" })
+    @Min(0, { message: "inputPower 不能小于 0" })
+    inputPower?: number;
+
+    @IsOptional()
+    @IsInt({ message: "outputPower 必须是整数" })
+    @Min(0, { message: "outputPower 不能小于 0" })
+    outputPower?: number;
+
+    @IsOptional()
+    @IsInt({ message: "cachePower 必须是整数" })
+    @Min(0, { message: "cachePower 不能小于 0" })
+    cachePower?: number;
+
+    @IsOptional()
     @IsInt({ message: "tokens 必须是整数" })
     @Min(1, { message: "tokens 不能小于 1" })
-    tokens: number;
+    tokens?: number;
+
+    @IsOptional()
+    @IsInt({ message: "imagePower 必须是整数" })
+    @Min(0, { message: "imagePower 不能小于 0" })
+    imagePower?: number;
 }
 
 /**
